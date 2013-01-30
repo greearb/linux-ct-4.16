@@ -809,7 +809,7 @@ nfs4_find_client_sessionid(struct net *net, const struct sockaddr *srcaddr,
 		if (srcaddr) {
 			const struct sockaddr *sa;
 			sa = (const struct sockaddr *)&clp->cl_addr;
-			if (!nfs_sockaddr_match_ipaddr(srcaddr, sa)) {
+			if (!rpc_cmp_addr(srcaddr, sa)) {
 				/* If clp doesn't bind to srcaddr, then
 				 * it is a potential match if we don't find
 				 * a better one.

@@ -499,6 +499,24 @@ static int pfifo_fast_enqueue(struct sk_buff *skb, struct Qdisc *qdisc,
 	return qdisc_drop(skb, qdisc, to_free);
 }
 
+static int pfifo_fast_try_enqueue(struct sk_buff *skb, struct Qdisc* qdisc, struct sk_buff **to_free)
+{
+	if (qdisc->q.qlen < qdisc_dev(qdisc)->tx_queue_len) {
+		int band = prio2band[skb->priority & TC_PRIO_MAX];
+		struct pfifo_fast_priv *priv = qdisc_priv(qdisc);
+		struct qdisc_skb_head *list = band2list(priv, band);
+
+		priv->bitmap |= (1 << band);
+		qdisc->q.qlen++;
+		return __qdisc_enqueue_tail(skb, qdisc, list);
+	}
+
+	/* no room to enqueue, tell calling code to back off.  Do NOT free skb, that is
+	 * calling code's to deal with.
+	 */
+	return NET_XMIT_BUSY;
+}
+
 static struct sk_buff *pfifo_fast_dequeue(struct Qdisc *qdisc)
 {
 	struct pfifo_fast_priv *priv = qdisc_priv(qdisc);
@@ -580,6 +598,7 @@ struct Qdisc_ops pfifo_fast_ops __read_mostly = {
 	.id		=	"pfifo_fast",
 	.priv_size	=	sizeof(struct pfifo_fast_priv),
 	.enqueue	=	pfifo_fast_enqueue,
+	.try_enqueue	=	pfifo_fast_try_enqueue,
 	.dequeue	=	pfifo_fast_dequeue,
 	.peek		=	pfifo_fast_peek,
 	.init		=	pfifo_fast_init,
@@ -630,6 +649,7 @@ struct Qdisc *qdisc_alloc(struct netdev_queue *dev_queue,
 
 	sch->ops = ops;
 	sch->enqueue = ops->enqueue;
+	sch->try_enqueue = ops->try_enqueue;
 	sch->dequeue = ops->dequeue;
 	sch->dev_queue = dev_queue;
 	dev_hold(dev);

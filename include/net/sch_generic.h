@@ -47,6 +47,7 @@ struct qdisc_skb_head {
 };
 
 struct Qdisc {
+	int 			(*try_enqueue)(struct sk_buff *, struct Qdisc *dev, struct sk_buff **to_free); /* May return NET_XMIT_BUSY and NOT free skb. */
 	int 			(*enqueue)(struct sk_buff *skb,
 					   struct Qdisc *sch,
 					   struct sk_buff **to_free);
@@ -184,6 +185,7 @@ struct Qdisc_ops {
 	int 			(*enqueue)(struct sk_buff *skb,
 					   struct Qdisc *sch,
 					   struct sk_buff **to_free);
+	int 			(*try_enqueue)(struct sk_buff *, struct Qdisc *, struct sk_buff **to_free); /* May return NET_XMIT_BUSY and NOT free skb. */
 	struct sk_buff *	(*dequeue)(struct Qdisc *);
 	struct sk_buff *	(*peek)(struct Qdisc *);
 

@@ -1069,4 +1069,25 @@ ath10k_rx_desc_get_l3_pad_bytes(struct ath10k_hw_params *hw,
 #define RTC_SYNC_STATUS_PLL_CHANGING_MASK	0x00000020
 /* qca6174 PLL offset/mask end */
 
+/* Target debug log related defines and structs */
+
+/* Target is 32-bit CPU, so we just use u32 for
+ * the pointers.  The memory space is relative to the
+ * target, not the host.  Values are converted to host
+ * byte order when reading from firmware.
+ */
+struct ath10k_fw_dbglog_buf {
+	__le32 next; /* pointer to ath10k_fw_dbglog_buf. */
+	__le32 buffer; /* pointer to u8 buffer */
+	__le32 bufsize;
+	__le32 length;
+	__le32 count;
+	__le32 free;
+} __packed;
+
+struct ath10k_fw_dbglog_hdr {
+	__le32 dbuf; /* pointer to ath10k_fw_dbglog_buf */
+	__le32 dropped;
+} __packed;
+
 #endif /* _HW_H_ */

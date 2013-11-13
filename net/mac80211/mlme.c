@@ -2640,7 +2640,14 @@ static void ieee80211_rx_mgmt_auth(struct ieee80211_sub_if_data *sdata,
 
 	event.u.mlme.status = MLME_SUCCESS;
 	drv_event_callback(sdata->local, sdata, &event);
-	sdata_info(sdata, "authenticated\n");
+
+	{
+		struct timeval tv;
+		do_gettimeofday(&tv);
+		sdata_info(sdata, "authenticated at: %lu.%lu\n",
+			   tv.tv_sec, tv.tv_usec);
+	}
+
 	ifmgd->auth_data->done = true;
 	ifmgd->auth_data->timeout = jiffies + IEEE80211_AUTH_WAIT_ASSOC;
 	ifmgd->auth_data->timeout_started = true;
@@ -3160,10 +3167,15 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 	status_code = le16_to_cpu(mgmt->u.assoc_resp.status_code);
 	aid = le16_to_cpu(mgmt->u.assoc_resp.aid);
 
-	sdata_info(sdata,
-		   "RX %sssocResp from %pM (capab=0x%x status=%d aid=%d)\n",
-		   reassoc ? "Rea" : "A", mgmt->sa,
-		   capab_info, status_code, (u16)(aid & ~(BIT(15) | BIT(14))));
+	{
+		struct timeval tv;
+		do_gettimeofday(&tv);
+		sdata_info(sdata,
+			   "RX %sssocResp from %pM (capab=0x%x status=%d aid=%d) at: %lu.%lu\n",
+			   reassoc ? "Rea" : "A", mgmt->sa,
+			   capab_info, status_code, (u16)(aid & ~(BIT(15) | BIT(14))),
+			   tv.tv_sec, tv.tv_usec);
+	}
 
 	if (assoc_data->fils_kek_len &&
 	    fils_decrypt_assoc_resp(sdata, (u8 *)mgmt, &len, assoc_data) < 0)
@@ -3206,7 +3218,12 @@ static void ieee80211_rx_mgmt_assoc_resp(struct ieee80211_sub_if_data *sdata,
 		}
 		event.u.mlme.status = MLME_SUCCESS;
 		drv_event_callback(sdata->local, sdata, &event);
-		sdata_info(sdata, "associated\n");
+		{
+			struct timeval tv;
+			do_gettimeofday(&tv);
+			sdata_info(sdata, "associated at: %lu.%lu\n",
+				   tv.tv_sec, tv.tv_usec);
+		}
 
 		/*
 		 * destroy assoc_data afterwards, as otherwise an idle
@@ -3775,9 +3792,14 @@ static int ieee80211_auth(struct ieee80211_sub_if_data *sdata)
 
 	drv_mgd_prepare_tx(local, sdata);
 
-	sdata_info(sdata, "send auth to %pM (try %d/%d)\n",
-		   auth_data->bss->bssid, auth_data->tries,
-		   IEEE80211_AUTH_MAX_TRIES);
+	{
+		struct timeval tv;
+		do_gettimeofday(&tv);
+		sdata_info(sdata, "send auth to %pM (try %d/%d) at: %lu.%lu\n",
+			   auth_data->bss->bssid, auth_data->tries,
+			   IEEE80211_AUTH_MAX_TRIES, tv.tv_sec,
+			   tv.tv_usec);
+	}
 
 	auth_data->expected_transaction = 2;
 
@@ -4614,7 +4636,12 @@ int ieee80211_mgd_auth(struct ieee80211_sub_if_data *sdata,
 					    WLAN_REASON_UNSPECIFIED);
 	}
 
-	sdata_info(sdata, "authenticate with %pM\n", req->bss->bssid);
+	{
+		struct timeval tv;
+		do_gettimeofday(&tv);
+		sdata_info(sdata, "authenticate with %pM at: %lu.%lu\n",
+			   req->bss->bssid, tv.tv_sec, tv.tv_usec);
+	}
 
 	err = ieee80211_prep_connection(sdata, req->bss, false, false);
 	if (err)

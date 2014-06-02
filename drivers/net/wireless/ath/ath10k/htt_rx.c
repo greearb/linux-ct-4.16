@@ -1646,22 +1646,51 @@ static void ath10k_htt_rx_tx_compl_ind(struct ath10k *ar,
 	ath10k_dbg(ar, ATH10K_DBG_HTT, "htt tx completion num_msdus %d\n",
 		   resp->data_tx_completion.num_msdus);
 
-	for (i = 0; i < resp->data_tx_completion.num_msdus; i++) {
-		msdu_id = resp->data_tx_completion.msdus[i];
-		tx_done.msdu_id = __le16_to_cpu(msdu_id);
+	if (test_bit(ATH10K_FW_FEATURE_WMI_10X_CT,
+		     ar->running_fw->fw_file.fw_features)) {
+		/* CT firmware reports tx-rate-kbps as well as the msdu id */
+		for (i = 0; i < resp->data_tx_completion_ct.num_msdus; i++) {
+			msdu_id = resp->data_tx_completion_ct.msdus[i].id;
+			tx_done.msdu_id = __le16_to_cpu(msdu_id);
+			tx_done.tx_rate_code = resp->data_tx_completion_ct.msdus[i].tx_rate_code;
+			tx_done.tx_rate_flags = resp->data_tx_completion_ct.msdus[i].tx_rate_flags;
 
-		/* kfifo_put: In practice firmware shouldn't fire off per-CE
-		 * interrupt and main interrupt (MSI/-X range case) for the same
-		 * HTC service so it should be safe to use kfifo_put w/o lock.
-		 *
-		 * From kfifo_put() documentation:
-		 *  Note that with only one concurrent reader and one concurrent
-		 *  writer, you don't need extra locking to use these macro.
-		 */
-		if (!kfifo_put(&htt->txdone_fifo, tx_done)) {
-			ath10k_warn(ar, "txdone fifo overrun, msdu_id %d status %d\n",
-				    tx_done.msdu_id, tx_done.status);
-			ath10k_txrx_tx_unref(htt, &tx_done);
+			/* kfifo_put: In practice firmware shouldn't fire off per-CE
+			 * interrupt and main interrupt (MSI/-X range case) for the same
+			 * HTC service so it should be safe to use kfifo_put w/o lock.
+			 *
+			 * From kfifo_put() documentation:
+			 *  Note that with only one concurrent reader and one concurrent
+			 *  writer, you don't need extra locking to use these macro.
+			 */
+			if (!kfifo_put(&htt->txdone_fifo, tx_done)) {
+				ath10k_warn(ar, "txdone fifo overrun, msdu_id %d status %d\n",
+					    tx_done.msdu_id, tx_done.status);
+				ath10k_txrx_tx_unref(htt, &tx_done);
+			}
+
+		}
+	} else {
+		/* Uptream firmware does not report any tx-rate */
+		tx_done.tx_rate_code = 0;
+		tx_done.tx_rate_flags = 0;
+		for (i = 0; i < resp->data_tx_completion.num_msdus; i++) {
+			msdu_id = resp->data_tx_completion.msdus[i];
+			tx_done.msdu_id = __le16_to_cpu(msdu_id);
+
+			/* kfifo_put: In practice firmware shouldn't fire off per-CE
+			 * interrupt and main interrupt (MSI/-X range case) for the same
+			 * HTC service so it should be safe to use kfifo_put w/o lock.
+			 *
+			 * From kfifo_put() documentation:
+			 *  Note that with only one concurrent reader and one concurrent
+			 *  writer, you don't need extra locking to use these macro.
+			 */
+			if (!kfifo_put(&htt->txdone_fifo, tx_done)) {
+				ath10k_warn(ar, "txdone fifo overrun, msdu_id %d status %d\n",
+					    tx_done.msdu_id, tx_done.status);
+				ath10k_txrx_tx_unref(htt, &tx_done);
+			}
 		}
 	}
 }
@@ -2404,6 +2433,8 @@ bool ath10k_htt_t2h_msg_handler(struct ath10k *ar, struct sk_buff *skb)
 		int status = __le32_to_cpu(resp->mgmt_tx_completion.status);
 
 		tx_done.msdu_id = __le32_to_cpu(resp->mgmt_tx_completion.desc_id);
+		tx_done.tx_rate_code = 0;
+		tx_done.tx_rate_flags = 0;
 
 		switch (status) {
 		case HTT_MGMT_TX_STATUS_OK:

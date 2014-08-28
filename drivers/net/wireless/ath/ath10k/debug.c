@@ -41,13 +41,18 @@
  * @ATH10K_FW_ERROR_DUMP_DBGLOG:  Recent firmware debug log entries
  * @ATH10K_FW_CRASH_DUMP_STACK:   Stack memory contents.
  * @ATH10K_FW_CRASH_DUMP_EXC_STACK:   Exception stack memory contents.
+ * @ATH10K_FW_CRASH_DUMP_RAM_BSS:  BSS area for RAM code
+ * @ATH10K_FW_CRASH_DUMP_ROM_BSS:  BSS area for ROM code
  */
 enum ath10k_fw_crash_dump_type {
 	ATH10K_FW_CRASH_DUMP_REGISTERS = 0,
+
 	ATH10K_FW_CRASH_DUMP_CE_DATA = 1,
 	ATH10K_FW_CRASH_DUMP_DBGLOG = 20,
 	ATH10K_FW_CRASH_DUMP_STACK = 21,
 	ATH10K_FW_CRASH_DUMP_EXC_STACK = 22,
+	ATH10K_FW_CRASH_DUMP_RAM_BSS = 23,
+	ATH10K_FW_CRASH_DUMP_ROM_BSS = 24,
 
 	ATH10K_FW_CRASH_DUMP_MAX,
 };
@@ -114,9 +119,11 @@ struct ath10k_dump_file_data {
 
 	__le32 stack_addr;
 	__le32 exc_stack_addr;
+	__le32 rom_bss_addr;
+	__le32 ram_bss_addr;
 
 	/* room for growth w/out changing binary format */
-	u8 unused[120];
+	u8 unused[112];
 
 	/* struct ath10k_tlv_dump_data + more */
 	u8 data[0];
@@ -839,6 +846,14 @@ static struct ath10k_dump_file_data *ath10k_build_dump_file(struct ath10k *ar,
 	len += sizeof(*dump_tlv) + sizeof(crash_data->stack_buf);
 	len += sizeof(*dump_tlv) + sizeof(crash_data->exc_stack_buf);
 
+	if (ar->running_fw->fw_file.ram_bss_addr &&
+	    ar->running_fw->fw_file.ram_bss_len)
+		len += sizeof(*dump_tlv) + ar->running_fw->fw_file.ram_bss_len;
+
+	if (ar->running_fw->fw_file.rom_bss_addr &&
+	    ar->running_fw->fw_file.rom_bss_len)
+		len += sizeof(*dump_tlv) + ar->running_fw->fw_file.rom_bss_len;
+
 	sofar += hdr_len;
 
 	/* This is going to get big when we start dumping FW RAM and such,
@@ -879,6 +894,10 @@ static struct ath10k_dump_file_data *ath10k_build_dump_file(struct ath10k *ar,
 	dump_data->num_rf_chains = cpu_to_le32(ar->num_rf_chains);
 	dump_data->stack_addr = cpu_to_le32(crash_data->stack_addr);
 	dump_data->exc_stack_addr = cpu_to_le32(crash_data->exc_stack_addr);
+	dump_data->rom_bss_addr =
+		cpu_to_le32(ar->running_fw->fw_file.rom_bss_addr);
+	dump_data->ram_bss_addr =
+		cpu_to_le32(ar->running_fw->fw_file.ram_bss_addr);
 
 	strlcpy(dump_data->fw_ver, ar->hw->wiphy->fw_version,
 		sizeof(dump_data->fw_ver));
@@ -940,6 +959,26 @@ static struct ath10k_dump_file_data *ath10k_build_dump_file(struct ath10k *ar,
 	dump_tlv->tlv_len = cpu_to_le32(tmp);
 	memcpy(dump_tlv->tlv_data, crash_data->exc_stack_buf, tmp);
 	sofar += sizeof(*dump_tlv) + tmp;
+
+	if (ar->running_fw->fw_file.ram_bss_addr &&
+	    ar->running_fw->fw_file.ram_bss_len) {
+		tmp = ar->running_fw->fw_file.ram_bss_len;
+		dump_tlv = (struct ath10k_tlv_dump_data *)(buf + sofar);
+		dump_tlv->type = cpu_to_le32(ATH10K_FW_CRASH_DUMP_RAM_BSS);
+		dump_tlv->tlv_len = cpu_to_le32(tmp);
+		memcpy(dump_tlv->tlv_data, crash_data->ram_bss_buf, tmp);
+		sofar += sizeof(*dump_tlv) + tmp;
+	}
+
+	if (ar->running_fw->fw_file.rom_bss_addr &&
+	    ar->running_fw->fw_file.rom_bss_len) {
+		tmp = ar->running_fw->fw_file.rom_bss_len;
+		dump_tlv = (struct ath10k_tlv_dump_data *)(buf + sofar);
+		dump_tlv->type = cpu_to_le32(ATH10K_FW_CRASH_DUMP_ROM_BSS);
+		dump_tlv->tlv_len = cpu_to_le32(tmp);
+		memcpy(dump_tlv->tlv_data, crash_data->rom_bss_buf, tmp);
+		sofar += sizeof(*dump_tlv) + tmp;
+	}
 
 	WARN_ON(sofar != len);
 

@@ -623,6 +623,9 @@ enum ath10k_fw_features {
 	/* Firmware load is done externally, not by bmi */
 	ATH10K_FW_FEATURE_NON_BMI = 19,
 
+	/* Firmware from Candela Technologies, enables more VIFs, etc */
+	ATH10K_FW_FEATURE_WMI_10X_CT = 31,
+
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,
 };

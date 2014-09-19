@@ -510,6 +510,7 @@ static const char *const ath10k_core_fw_feature_str[] = {
 	[ATH10K_FW_FEATURE_NO_PS] = "no-ps",
 	[ATH10K_FW_FEATURE_MGMT_TX_BY_REF] = "mgmt-tx-by-reference",
 	[ATH10K_FW_FEATURE_NON_BMI] = "non-bmi",
+	[ATH10K_FW_FEATURE_WMI_10X_CT] = "wmi-10.x-CT",
 };
 
 static unsigned int ath10k_core_get_fw_feature_str(char *buf,

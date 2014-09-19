@@ -377,6 +377,7 @@ static const char *const ath10k_core_fw_feature_str[] = {
 	[ATH10K_FW_FEATURE_BTCOEX_PARAM] = "btcoex-param",
 	[ATH10K_FW_FEATURE_SKIP_NULL_FUNC_WAR] = "skip-null-func-war",
 	[ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST] = "allows-mesh-bcast",
+	[ATH10K_FW_FEATURE_WMI_10X_CT] = "wmi-10.x-CT",
 };
 
 static unsigned int ath10k_core_get_fw_feature_str(char *buf,

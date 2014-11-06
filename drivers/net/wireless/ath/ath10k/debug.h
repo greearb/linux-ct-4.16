@@ -21,6 +21,10 @@
 #include <linux/types.h>
 #include "trace.h"
 
+/**
+ * ATH10K_DBG_INFO_AS_DBG: use dev_dbg instead of dev_info
+ *       for ath10k_info messages
+ */
 enum ath10k_debug_mask {
 	ATH10K_DBG_PCI		= 0x00000001,
 	ATH10K_DBG_WMI		= 0x00000002,
@@ -40,6 +44,7 @@ enum ath10k_debug_mask {
 	ATH10K_DBG_AHB		= 0x00008000,
 	ATH10K_DBG_SDIO		= 0x00010000,
 	ATH10K_DBG_SDIO_DUMP	= 0x00020000,
+	ATH10K_DBG_INFO_AS_DBG	= 0x40000000,
 	ATH10K_DBG_FW		= 0x80000000,
 	ATH10K_DBG_ANY		= 0xffffffff,
 };

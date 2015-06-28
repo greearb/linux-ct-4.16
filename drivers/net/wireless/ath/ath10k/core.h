@@ -1072,6 +1072,8 @@ struct ath10k {
 		u32 reg_ack_cts_timeout_orig;
 	} fw_coverage;
 
+	u8 ath10k_thresh62_ext; /* be sure to flush this to firmware after resets */
+
 	/* must be last */
 	u8 drv_priv[0] __aligned(sizeof(void *));
 };

@@ -863,6 +863,7 @@ struct ath10k {
 	u32 set_rate_type; /* override for set-rate behaviour */
 
 	bool p2p;
+	bool ct_all_pkts_htt; /* CT firmware only: native-wifi for all pkts */
 
 	struct {
 		enum ath10k_bus bus;

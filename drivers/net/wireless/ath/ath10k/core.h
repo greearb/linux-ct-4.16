@@ -665,6 +665,9 @@ enum ath10k_fw_features {
 	 */
 	ATH10K_FW_FEATURE_ALLOWS_MESH_BCAST = 16,
 
+	/* tx-status has the noack bits (CT firmware version 14 and higher ) */
+	ATH10K_FW_FEATURE_HAS_TXSTATUS_NOACK = 30,
+
 	/* Firmware from Candela Technologies, enables more VIFs, etc */
 	ATH10K_FW_FEATURE_WMI_10X_CT = 31,
 
@@ -672,9 +675,6 @@ enum ath10k_fw_features {
 	 * Required for multiple stations connected to same AP when using
 	 * encryption (ie, commercial version of CT firmware) */
 	ATH10K_FW_FEATURE_CT_RXSWCRYPT = 32,
-
-	/* tx-status has the noack bits (CT firmware version 14 and higher ) */
-	ATH10K_FW_FEATURE_HAS_TXSTATUS_NOACK = 33,
 
 	/* keep last */
 	ATH10K_FW_FEATURE_COUNT,

@@ -321,6 +321,8 @@ struct ath10k_fw_stats {
 	u16 sw_chainmask_rx;
 	u32 sw_opmode;
 	u32 sw_rxfilter;
+	u32 short_retries; // RTS packet retries
+	u32 long_retries; // Data packet retries
 };
 
 #define ATH10K_TPC_TABLE_TYPE_FLAG	1
@@ -550,8 +552,16 @@ struct ath10k_debug {
 
 	struct ath10k_dbglog_entry_storage dbglog_entry_data;
 
-	u64 tx_bytes; /* counter, firmware does not offer this stat */
-	u64 rx_bytes; /* counter, firmware does not offer this stat */
+	/* These counters are kept in software. */
+	u64 rx_bytes; /* counter, total received bytes */
+
+	u32 tx_ok; /* counter, OK tx status count. */
+	u32 tx_noack; /* counter, no-ack tx status count. */
+	u32 tx_discard; /* counter, discard tx status count. */
+	u64 tx_ok_bytes;
+	u64 tx_noack_bytes;
+	u64 tx_discard_bytes;
+	u64 tx_bytes; /* counter, total sent to firmware */
 };
 
 enum ath10k_state {

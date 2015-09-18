@@ -86,6 +86,9 @@
 /* The magic used by QCA spec */
 #define ATH10K_SMBIOS_BDF_EXT_MAGIC "BDF_"
 
+// TODO-BEN:  Remove this and fix all instances of vif_to_arvif.
+#define ath10k_vif_to_arvif(a) (void*)(a->drv_priv)
+
 struct ath10k;
 
 enum ath10k_bus {

@@ -454,6 +454,13 @@ struct ath10k_vif {
 	bool nohwcrypt;
 	int num_legacy_stations;
 	int txpower;
+	/* Firmware allows configuring rate of each of these traffic types.
+	 * 0xFF will mean value has not been set by user, and in that case,
+	 * we will auto-adjust the rates based on the legacy rate mask.
+	 **/
+	u8 mcast_rate[NUM_NL80211_BANDS];
+	u8 bcast_rate[NUM_NL80211_BANDS];
+	u8 mgt_rate[NUM_NL80211_BANDS];
 	struct wmi_wmm_params_all_arg wmm_params;
 	struct work_struct ap_csa_work;
 	struct delayed_work connection_loss_work;

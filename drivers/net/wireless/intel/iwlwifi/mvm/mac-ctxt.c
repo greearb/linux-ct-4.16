@@ -443,10 +443,12 @@ static int iwl_mvm_mac_ctxt_allocate_resources(struct iwl_mvm *mvm,
 		 * queues in mac80211 almost entirely independent of
 		 * the ones here - no real limit
 		 */
-		queue_limit = IEEE80211_MAX_QUEUES;
-		BUILD_BUG_ON(IEEE80211_MAX_QUEUES >
-			     BITS_PER_BYTE *
-			     sizeof(mvm->hw_queue_to_mac80211[0]));
+		queue_limit = 16; /* IEEE80211_MAX_QUEUES; I'm supporting more queues now, and that
+				   * breaks the assert below.  I guess iwl doesn't need more than the
+				   * old default of 16 anyway. --Ben */
+		//BUILD_BUG_ON(IEEE80211_MAX_QUEUES >
+		//	     BITS_PER_BYTE *
+		//	     sizeof(mvm->hw_queue_to_mac80211[0]));
 	} else {
 		/* need to not use too many in this case */
 		queue_limit = mvm->first_agg_queue;

@@ -388,6 +388,7 @@ static const char *const ath10k_core_fw_feature_str[] = {
 	[ATH10K_FW_FEATURE_PINGPONG_READ_CT] = "pingpong-CT",
 	[ATH10K_FW_FEATURE_SKIP_CH_RES_CT] = "ch-regs-CT",
 	[ATH10K_FW_FEATURE_NOP_CT] = "nop-CT",
+	[ATH10K_FW_FEATURE_HTT_MGT_CT] = "htt-mgt-CT",
 };
 
 static unsigned int ath10k_core_get_fw_feature_str(char *buf,
@@ -1982,6 +1983,13 @@ static int ath10k_core_init_firmware_features(struct ath10k *ar)
 		}
 		ar->max_num_vdevs = TARGET_10X_NUM_VDEVS;
 		ar->htt.max_num_pending_tx = TARGET_10X_NUM_MSDU_DESC;
+
+		if (test_bit(ATH10K_FW_FEATURE_WMI_10X_CT,
+			     fw_file->fw_features)) {
+			ar->max_num_peers = ath10k_modparam_target_num_peers_ct;
+			ar->max_num_vdevs = ath10k_modparam_target_num_vdevs_ct;
+			ar->htt.max_num_pending_tx = ath10k_modparam_target_num_msdu_desc_ct;
+		}
 		ar->fw_stats_req_mask = WMI_STAT_PEER;
 		ar->max_spatial_stream = WMI_MAX_SPATIAL_STREAM;
 		break;
@@ -2319,6 +2327,11 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 	status = ath10k_debug_start(ar);
 	if (status)
 		goto err_hif_stop;
+
+	if (test_bit(ATH10K_FW_FEATURE_HTT_MGT_CT,
+		     ar->running_fw->fw_file.fw_features)) {
+		ar->ct_all_pkts_htt = true;
+	}
 
 	if (test_bit(ATH10K_FW_FEATURE_SET_SPECIAL_CT,
 		     ar->running_fw->fw_file.fw_features)) {

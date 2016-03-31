@@ -453,6 +453,9 @@ void ath10k_htt_tx_destroy(struct ath10k_htt *htt)
 
 void ath10k_htt_tx_stop(struct ath10k_htt *htt)
 {
+
+	tasklet_kill(&htt->txrx_compl_task);
+
 	idr_for_each(&htt->pending_tx, ath10k_htt_tx_clean_up_pending, htt->ar);
 	idr_destroy(&htt->pending_tx);
 }

@@ -902,6 +902,8 @@ struct ath10k {
 	struct device *dev;
 	u8 mac_addr[ETH_ALEN];
 
+	struct ieee80211_iface_combination if_comb[8];
+
 	enum ath10k_hw_rev hw_rev;
 	u16 dev_id;
 	bool fw_powerup_failed; /* If true, might take reboot to recover. */
@@ -1225,5 +1227,6 @@ int ath10k_wait_for_suspend(struct ath10k *ar, u32 suspend_opt);
 void ath10k_core_stop(struct ath10k *ar);
 int ath10k_core_register(struct ath10k *ar, u32 chip_id);
 void ath10k_core_unregister(struct ath10k *ar);
+void ath10k_core_free_limits(struct ath10k* ar);
 
 #endif /* _CORE_H_ */

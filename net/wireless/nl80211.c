@@ -2129,6 +2129,10 @@ static int nl80211_parse_chandef(struct cfg80211_registered_device *rdev,
 				info->attrs[NL80211_ATTR_WIPHY_CHANNEL_TYPE]);
 
 		switch (chantype) {
+		case NL80211_CHAN_NO_HT5:
+		case NL80211_CHAN_HT5:
+		case NL80211_CHAN_NO_HT10:
+		case NL80211_CHAN_HT10:
 		case NL80211_CHAN_NO_HT:
 		case NL80211_CHAN_HT20:
 		case NL80211_CHAN_HT40PLUS:
@@ -2172,6 +2176,8 @@ static int nl80211_parse_chandef(struct cfg80211_registered_device *rdev,
 			nla_get_u32(info->attrs[NL80211_ATTR_CHANNEL_WIDTH]);
 
 	if ((chandef->width == NL80211_CHAN_WIDTH_5 ||
+	     chandef->width == NL80211_CHAN_WIDTH_5_NOHT ||
+	     chandef->width == NL80211_CHAN_WIDTH_10_NOHT ||
 	     chandef->width == NL80211_CHAN_WIDTH_10) &&
 	    !(rdev->wiphy.flags & WIPHY_FLAG_SUPPORTS_5_10_MHZ)) {
 		pr_err("parse-chandef:  5/10 Mhz is not supported.\n");

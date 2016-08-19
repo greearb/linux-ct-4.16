@@ -4324,8 +4324,10 @@ static void ath10k_mac_txq_init(struct ieee80211_txq *txq)
 static void ath10k_mac_txq_unref(struct ath10k *ar, struct ieee80211_txq *txq)
 {
 	struct ath10k_txq *artxq;
+	struct ath10k_txq *tmp, *walker;
 	struct ath10k_skb_cb *cb;
 	struct sk_buff *msdu;
+	struct ieee80211_txq *txq_tmp;
 	int msdu_id;
 
 	if (!txq)
@@ -4335,6 +4337,16 @@ static void ath10k_mac_txq_unref(struct ath10k *ar, struct ieee80211_txq *txq)
 	spin_lock_bh(&ar->txqs_lock);
 	if (!list_empty(&artxq->list))
 		list_del_init(&artxq->list);
+
+	/* Remove from ar->txqs in case it still exists there. */
+	list_for_each_entry_safe(walker, tmp, &ar->txqs, list) {
+		txq_tmp = container_of((void *)walker, struct ieee80211_txq,
+				       drv_priv);
+		if (txq_tmp == txq) {
+			list_del(&walker->list);
+			WARN_ON_ONCE(1);
+		}
+	}
 	spin_unlock_bh(&ar->txqs_lock);
 
 	spin_lock_bh(&ar->htt.tx_lock);

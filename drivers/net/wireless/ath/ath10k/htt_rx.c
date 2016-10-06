@@ -1022,6 +1022,12 @@ static void ath10k_htt_rx_h_undecap_raw(struct ath10k *ar,
 	if (unlikely(WARN_ON_ONCE(!(is_first && is_last))))
 		return;
 
+	/* We see zero length msdus, not sure why.  At least don't
+	 * try to trim it further.
+	 */
+	if (unlikely(msdu->len < 4))
+		return;
+
 	skb_trim(msdu, msdu->len - FCS_LEN);
 
 	/* In most cases this will be true for sniffed frames. It makes sense

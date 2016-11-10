@@ -272,7 +272,8 @@ ieee80211_prepare_scan_chandef(struct cfg80211_chan_def *chandef,
 }
 
 /* return false if no more work */
-static bool ieee80211_prep_hw_scan(struct ieee80211_local *local)
+static bool ieee80211_prep_hw_scan(struct ieee80211_local *local,
+				   struct ieee80211_sub_if_data *sdata)
 {
 	struct cfg80211_scan_request *req;
 	struct cfg80211_chan_def chandef;
@@ -280,6 +281,7 @@ static bool ieee80211_prep_hw_scan(struct ieee80211_local *local)
 	int i, ielen, n_chans;
 	bool disable_ht;
 	bool disable_vht;
+	u32 rates[NUM_NL80211_BANDS];
 
 	req = rcu_dereference_protected(local->scan_req,
 					lockdep_is_held(&local->mtx));
@@ -323,12 +325,20 @@ static bool ieee80211_prep_hw_scan(struct ieee80211_local *local)
 	local->hw_scan_req->req.n_channels = n_chans;
 	ieee80211_prepare_scan_chandef(&chandef, req->scan_width);
 
+	memcpy(rates, req->rates, sizeof(rates));
+	if (sdata && sdata->cfg_advert_bitrate_mask_set) {
+		int i;
+		for (i = 0; i < NUM_NL80211_BANDS; i++) {
+			rates[i] &= sdata->cfg_advert_bitrate_mask.control[i].legacy;
+		}
+	}
+
 	ielen = ieee80211_build_preq_ies(local,
 					 (u8 *)local->hw_scan_req->req.ie,
 					 local->hw_scan_ies_bufsize,
 					 &local->hw_scan_req->ies,
 					 req->ie, req->ie_len,
-					 bands_used, req->rates, &chandef,
+					 bands_used, rates, &chandef,
 					 disable_ht, disable_vht);
 	local->hw_scan_req->req.ie_len = ielen;
 	local->hw_scan_req->req.no_cck = req->no_cck;
@@ -365,7 +375,8 @@ static void __ieee80211_scan_completed(struct ieee80211_hw *hw, bool aborted)
 
 	if (hw_scan && !aborted &&
 	    !ieee80211_hw_check(&local->hw, SINGLE_SCAN_ON_ALL_BANDS) &&
-	    ieee80211_prep_hw_scan(local)) {
+	    ieee80211_prep_hw_scan(local, rcu_dereference_protected(local->scan_sdata,
+								    lockdep_is_held(&local->mtx)))) {
 		int rc;
 
 		rc = drv_hw_scan(local,
@@ -682,7 +693,7 @@ static int __ieee80211_start_scan(struct ieee80211_sub_if_data *sdata,
 	ieee80211_recalc_idle(local);
 
 	if (local->ops->hw_scan) {
-		WARN_ON(!ieee80211_prep_hw_scan(local));
+		WARN_ON(!ieee80211_prep_hw_scan(local, sdata));
 		rc = drv_hw_scan(local, sdata, local->hw_scan_req);
 	} else {
 		rc = ieee80211_start_sw_scan(local, sdata);

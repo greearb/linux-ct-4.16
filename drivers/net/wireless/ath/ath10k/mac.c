@@ -3248,8 +3248,8 @@ static void ath10k_bss_assoc(struct ieee80211_hw *hw,
 	}
 
 	ath10k_dbg(ar, ATH10K_DBG_MAC,
-		   "mac vdev %d up (associated) bssid %pM aid %d\n",
-		   arvif->vdev_id, bss_conf->bssid, bss_conf->aid);
+		   "mac vdev %d up (associated) bssid %pM aid %d bandwidth %d\n",
+		   arvif->vdev_id, bss_conf->bssid, bss_conf->aid, ap_sta->bandwidth);
 
 	WARN_ON(arvif->is_up);
 
@@ -6679,8 +6679,8 @@ static void ath10k_sta_rc_update_wk(struct work_struct *wk)
 	}
 
 	if (changed & IEEE80211_RC_SUPP_RATES_CHANGED) {
-		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac update sta %pM supp rates\n",
-			   sta->addr);
+		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac update sta %pM supp rates, bandwidth: %d\n",
+			   sta->addr, sta->bandwidth);
 
 		err = ath10k_station_assoc(ar, arvif->vif, sta, true);
 		if (err)
@@ -6915,8 +6915,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 		/*
 		 * New association.
 		 */
-		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac sta %pM associated\n",
-			   sta->addr);
+		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac sta %pM associated, bandwidth: %d\n",
+			   sta->addr, sta->bandwidth);
 
 		ret = ath10k_station_assoc(ar, vif, sta, false);
 		if (ret)
@@ -6928,8 +6928,8 @@ static int ath10k_sta_state(struct ieee80211_hw *hw,
 		/*
 		 * Tdls station authorized.
 		 */
-		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac tdls sta %pM authorized\n",
-			   sta->addr);
+		ath10k_dbg(ar, ATH10K_DBG_MAC, "mac tdls sta %pM authorized, bandwidth: %d\n",
+			   sta->addr, sta->bandwidth);
 
 		ret = ath10k_station_assoc(ar, vif, sta, false);
 		if (ret) {

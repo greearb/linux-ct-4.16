@@ -6614,7 +6614,9 @@ struct wmi_pdev_set_special_cmd {
 #define SET_SPECIAL_ID_PDEV_XRETRY_TH   9 /* Set the threshold for resetting phy due to failed retries, U16 */
 #define SET_SPECIAL_ID_RIFS_ENABLE    0xA /* Enable(1)/disable(0) RIFS.  Disabled by default. */
 #define SET_SPECIAL_ID_WMI_WD         0xB /* Set the watchdog trigger count, 0 means disable */
-
+#define SET_SPECIAL_ID_PSHACK         0xC /* flag 0x1:  ignore PS sleep message from STA
+                                           * flag 0x2:  mark mcast as 'data-is-buffered' regardless.
+                                           */
 
 #define CT_CCA_TYPE_MIN0 0
 #define CT_CCA_TYPE_MIN1 1

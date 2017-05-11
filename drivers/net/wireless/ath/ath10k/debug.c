@@ -201,8 +201,9 @@ void ath10k_debug_print_board_info(struct ath10k *ar)
 	ath10k_info(ar, "board_file api %d bmi_id %s crc32 %08x",
 		    ar->bd_api,
 		    boardinfo,
+		    ar->normal_mode_fw.board ?
 		    crc32_le(0, ar->normal_mode_fw.board->data,
-			     ar->normal_mode_fw.board->size));
+			     ar->normal_mode_fw.board->size) : 0xdeadbeef);
 }
 
 void ath10k_debug_print_boot_info(struct ath10k *ar)

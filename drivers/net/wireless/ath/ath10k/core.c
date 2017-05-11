@@ -1288,6 +1288,14 @@ static int ath10k_core_fetch_board_data_api_1(struct ath10k *ar)
 	ar->normal_mode_fw.board_data = ar->normal_mode_fw.board->data;
 	ar->normal_mode_fw.board_len = ar->normal_mode_fw.board->size;
 
+	/* Save firmware board name so we can display it later. */
+	if (ar->fwcfg.bname[0])
+		strlcpy(ar->normal_mode_fw.fw_file.fw_board_name, ar->fwcfg.bname,
+			sizeof(ar->normal_mode_fw.fw_file.fw_board_name));
+	else
+		strlcpy(ar->normal_mode_fw.fw_file.fw_board_name, ar->hw_params.fw.board,
+			sizeof(ar->normal_mode_fw.fw_file.fw_board_name));
+
 	return 0;
 }
 

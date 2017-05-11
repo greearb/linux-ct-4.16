@@ -980,6 +980,7 @@ struct ath10k {
 		u32 flags; /* let us know which fields have been set */
 		char calname[100];
 		char fwname[100];
+		char bname[100]; /* board file name */
 		u32 fwver;
 		u32 vdevs;
 		u32 stations;

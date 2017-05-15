@@ -1922,7 +1922,7 @@ static int ath10k_core_pre_cal_config(struct ath10k *ar)
 
 	ret = ath10k_download_and_run_otp(ar);
 	if (ret) {
-		ath10k_err(ar, "failed to run otp: %d\n", ret);
+		ath10k_err(ar, "failed to run otp: %d  (pre-cal-config)\n", ret);
 		return ret;
 	}
 
@@ -1976,7 +1976,7 @@ static int ath10k_download_cal_data(struct ath10k *ar)
 
 	ret = ath10k_download_and_run_otp(ar);
 	if (ret) {
-		ath10k_err(ar, "failed to run otp: %d\n", ret);
+		ath10k_err(ar, "failed to run otp: %d (download-cal-data)\n", ret);
 		return ret;
 	}
 
@@ -2926,7 +2926,11 @@ static void ath10k_core_register_work(struct work_struct *work)
 
 	status = ath10k_core_probe_fw(ar);
 	if (status) {
-		ath10k_err(ar, "could not probe fw (%d)\n", status);
+		ath10k_err(ar, "could not probe fw (%d), releasing napi\n", status);
+		/* Make sure that NAPI state is cleaned up, it can otherwise fail
+		 * to be cleaned up in some error cases.
+		 */
+		napi_disable(&ar->napi);
 		goto err;
 	}
 

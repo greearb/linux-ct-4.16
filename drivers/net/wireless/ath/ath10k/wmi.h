@@ -1761,6 +1761,7 @@ enum wmi_10_4_event_id {
 	WMI_10_4_PDEV_NFCAL_POWER_ALL_CHANNELS_EVENTID,
 	WMI_10_4_PDEV_BSS_CHAN_INFO_EVENTID,
 	WMI_10_4_MU_REPORT_EVENTID,
+	WMI_10_4_TXBF_CV_MESG_EVENTID = WMI_10_4_END_EVENTID - 3, /* CT Specific event ID */
 	WMI_10_4_CSI_MESG_EVENTID = WMI_10_4_END_EVENTID - 2, /* CT Specific event ID */
 	WMI_10_4_PDEV_UTF_EVENTID = WMI_10_4_END_EVENTID - 1,
 };
@@ -6286,6 +6287,19 @@ struct wmi_10_4_chan_info_event {
 
 struct wmi_peer_sta_kickout_event {
 	struct wmi_mac_addr peer_macaddr;
+} __packed;
+
+struct wmi_txbf_cv_event {
+	struct wmi_mac_addr peer_macaddr;
+	u16 vdev_id;
+	u16 cv_size;
+	u16 cv_idx; /* pool-idx-mask: 0xF000, mem-id-mask: 0x0FFF */
+	u8 cv_type;
+	u8 mu_mimo;
+	u8 Nc;
+	u8 BW;
+	u8 Nr;
+	u8 state;
 } __packed;
 
 #define WMI_CHAN_INFO_FLAG_COMPLETE BIT(0)

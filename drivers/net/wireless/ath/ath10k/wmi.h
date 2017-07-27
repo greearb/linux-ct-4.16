@@ -6293,13 +6293,16 @@ struct wmi_txbf_cv_event {
 	struct wmi_mac_addr peer_macaddr;
 	u16 vdev_id;
 	u16 cv_size;
-	u16 cv_idx; /* pool-idx-mask: 0xF000, mem-id-mask: 0x0FFF */
+	u16 cv_record_idx;
+	u16 cv_record_size;
+	u8 pool_idx;
 	u8 cv_type;
 	u8 mu_mimo;
 	u8 Nc;
 	u8 BW;
 	u8 Nr;
 	u8 state;
+	u8 unused;
 } __packed;
 
 #define WMI_CHAN_INFO_FLAG_COMPLETE BIT(0)
@@ -6637,6 +6640,7 @@ struct wmi_pdev_set_special_cmd {
                                            */
 #define SET_SPECIAL_ID_CSI            0xD /* 0 == disable, else enable reporting CSI data.  10.4 FW only at this time. */
 #define SET_SPECIAL_ID_BW_DISABLE_MASK 0xE /* 0x1 == disable 20Mhz, 0x2 == 40Mhz, 0x4 == 80Mhz, 0x8 == 160Mhz.  0x0 == default */
+#define SET_SPECIAL_ID_TXBF_CV_MSG     0xF /* 0x1 == enable, 0x0 == disable (default). */
 
 #define CT_CCA_TYPE_MIN0 0
 #define CT_CCA_TYPE_MIN1 1

@@ -1601,8 +1601,12 @@ static int ath10k_fw_crash_dump_open(struct inode *inode, struct file *file)
 {
 	struct ath10k *ar = inode->i_private;
 	struct ath10k_dump_file_data *dump;
+	static bool do_once = true;
 
-	ath10k_warn(ar, "fw_crash_dump debugfs file is deprecated, please use /sys/class/devcoredump instead.");
+	if (do_once) {
+		ath10k_warn(ar, "fw_crash_dump debugfs file is deprecated, please use /sys/class/devcoredump instead.");
+		do_once = false;
+	}
 
 	dump = ath10k_build_dump_file(ar, true);
 	if (!dump)

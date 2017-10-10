@@ -2756,8 +2756,10 @@ static int ieee80211_set_bitrate_mask(struct wiphy *wiphy,
 		u32 basic_rates = sdata->vif.bss_conf.basic_rates;
 		enum nl80211_band band = sdata->vif.bss_conf.chandef.chan->band;
 
-		if (!(mask->control[band].legacy & basic_rates))
-			return -EINVAL;
+		if (!(mask->control[band].legacy & basic_rates)) {
+			pr_err("%s:  WARNING: no legacy rates for band[%d] in set-bitrate-mask.\n",
+			       sdata->dev->name, band);
+		}
 	}
 
 	for (i = 0; i < NUM_NL80211_BANDS; i++) {

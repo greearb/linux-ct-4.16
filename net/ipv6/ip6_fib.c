@@ -1614,6 +1614,12 @@ skip:
 			pn = fn->parent;
 			w->node = pn;
 #ifdef CONFIG_IPV6_SUBTREES
+			if (WARN_ON_ONCE(!pn)) {
+				pr_err("FWS-U, w: %p  fn: %p  pn: %p\n",
+				       w, fn, pn);
+				/* Attempt to work around crash that has been here forever. --Ben */
+				return 0;
+			}
 			if (FIB6_SUBTREE(pn) == fn) {
 				WARN_ON(!(fn->fn_flags & RTN_ROOT));
 				w->state = FWS_L;

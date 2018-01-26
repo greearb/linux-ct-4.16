@@ -2488,6 +2488,7 @@ int ath10k_core_start(struct ath10k *ar, enum ath10k_firmware_mode mode,
 
 	clear_bit(ATH10K_FLAG_CRASH_FLUSH, &ar->dev_flags);
 
+	ar->ok_tx_rate_status = false;
 	ar->running_fw = fw;
 
 	ath10k_bmi_start(ar);

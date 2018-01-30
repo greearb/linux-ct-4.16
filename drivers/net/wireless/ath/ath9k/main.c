@@ -70,10 +70,10 @@ static bool ath9k_has_pending_frames(struct ath_softc *sc, struct ath_txq *txq,
 		goto out;
 
 	if (txq->mac80211_qnum >= 0) {
-		struct ath_acq *acq;
+		struct list_head *list;
 
-		acq = &sc->cur_chan->acq[txq->mac80211_qnum];
-		if (!list_empty(&acq->acq_new) || !list_empty(&acq->acq_old))
+		list = &sc->cur_chan->acq[txq->mac80211_qnum];
+		if (!list_empty(list))
 			pending = true;
 	}
 out:

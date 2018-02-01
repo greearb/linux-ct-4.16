@@ -2236,6 +2236,8 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
 	size_t pull_len;
 	u32 msdu_len;
 	u32 len;
+	u32 snr;
+	u32 channel;
 
 	if (test_bit(ATH10K_FW_FEATURE_EXT_WMI_MGMT_RX,
 		     ar->running_fw->fw_file.fw_features)) {
@@ -2258,6 +2260,24 @@ static int ath10k_wmi_op_pull_mgmt_rx_ev(struct ath10k *ar, struct sk_buff *skb,
 	arg->snr = ev_hdr->snr;
 	arg->phy_mode = ev_hdr->phy_mode;
 	arg->rate = ev_hdr->rate;
+
+	snr = __le32_to_cpu(arg->snr);
+	channel = __le32_to_cpu(arg->channel);
+
+	/* Recent CT wave-1 firmware can report per-chain values if properly requested... */
+	if ((snr & 0xFFFFFF00) || (channel & 0xFF000000)) {
+		/* pri20_mhz signal */
+		arg->rssi_ctl[0] = snr >> 8;
+		arg->rssi_ctl[1] = snr >> 16;
+		arg->rssi_ctl[2] = snr >> 24;
+		snr = snr & 0xFF;
+
+		arg->rssi_ctl[3] = channel >> 24;
+		channel = channel & 0xFFFFFF;
+
+		arg->snr = __cpu_to_le32(snr);
+		arg->channel = __cpu_to_le32(channel);
+	}
 
 	msdu_len = __le32_to_cpu(arg->buf_len);
 	if (skb->len < msdu_len)
@@ -6066,7 +6086,7 @@ static struct sk_buff *ath10k_wmi_10_1_op_gen_init(struct ath10k *ar)
 		else if (ar->request_nohwcrypt) {
 			ath10k_err(ar, "nohwcrypt requested, but firmware does not support this feature.  Disabling swcrypt.\n");
 		}
-		config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE);
+		config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE | ATH10k_MGT_CHAIN_RSSI_OK);
 		/* Disable WoW in firmware, could make this module option perhaps? */
 		config.rx_decap_mode |= __cpu_to_le32(ATH10k_DISABLE_WOW);
 		config.roam_offload_max_vdev = 0; /* disable roaming */
@@ -6180,7 +6200,7 @@ static struct sk_buff *ath10k_wmi_10_2_op_gen_init(struct ath10k *ar)
 
 		if (test_bit(ATH10K_FW_FEATURE_TXRATE_CT,
 			     ar->running_fw->fw_file.fw_features))
-			config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE);
+			config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE | ATH10k_MGT_CHAIN_RSSI_OK);
 
 		/* Disable WoW in firmware, could make this module option perhaps? */
 		config.rx_decap_mode |= __cpu_to_le32(ATH10k_DISABLE_WOW);
@@ -6309,7 +6329,7 @@ static struct sk_buff *ath10k_wmi_10_4_op_gen_init(struct ath10k *ar)
 
 		if (test_bit(ATH10K_FW_FEATURE_TXRATE_CT,
 			     ar->running_fw->fw_file.fw_features)) {
-			config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE);
+			config.rx_decap_mode |= __cpu_to_le32(ATH10k_USE_TXCOMPL_TXRATE | ATH10k_MGT_CHAIN_RSSI_OK);
 			/* Must enable alloc_frag_desc_for_data_pkt for txrate support.  This eats up
 			 * 4 extra bytes per msdu descriptor.
 			 */

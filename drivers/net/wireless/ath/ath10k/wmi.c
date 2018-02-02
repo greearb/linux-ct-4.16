@@ -2287,6 +2287,7 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
 	u32 msdu_len;
 	struct wmi_mgmt_rx_ext_info *ext_info;
 	u32 len;
+	int i;
 
 	ev = (struct wmi_10_4_mgmt_rx_event *)skb->data;
 	ev_hdr = &ev->hdr;
@@ -2302,6 +2303,8 @@ static int ath10k_wmi_10_4_op_pull_mgmt_rx_ev(struct ath10k *ar,
 	arg->snr = ev_hdr->snr;
 	arg->phy_mode = ev_hdr->phy_mode;
 	arg->rate = ev_hdr->rate;
+	for (i = 0; i<4; i++)
+		arg->rssi_ctl[i] = ev_hdr->rssi_ctl[i];
 
 	msdu_len = __le32_to_cpu(arg->buf_len);
 	if (skb->len < msdu_len)
@@ -2357,6 +2360,13 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
 	u32 buf_len;
 	u16 fc;
 	int ret;
+	int i;
+
+	/* Initialize the rssi to 'ignore-me' value, stock wave-1
+	 * firmware doesn't support it.
+	 */
+	for (i = 0; i<4; i++)
+		arg.rssi_ctl[i] = 0x80;
 
 	ret = ath10k_wmi_pull_mgmt_rx(ar, skb, &arg);
 	if (ret) {
@@ -2416,6 +2426,12 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
 
 	status->freq = ieee80211_channel_to_frequency(channel, status->band);
 	status->signal = snr + ATH10K_DEFAULT_NOISE_FLOOR;
+	for (i = 0; i<4; i++) {
+		if (arg.rssi_ctl[i] != 0x80) {
+			status->chains |= BIT(i);
+			status->chain_signal[i] = ATH10K_DEFAULT_NOISE_FLOOR + arg.rssi_ctl[i];
+		}
+	}
 	status->rate_idx = ath10k_mac_bitrate_to_idx(sband, rate / 100);
 
 	hdr = (struct ieee80211_hdr *)skb->data;
@@ -2451,8 +2467,11 @@ int ath10k_wmi_event_mgmt_rx(struct ath10k *ar, struct sk_buff *skb)
 		   fc & IEEE80211_FCTL_FTYPE, fc & IEEE80211_FCTL_STYPE);
 
 	ath10k_dbg(ar, ATH10K_DBG_MGMT,
-		   "event mgmt rx freq %d band %d snr %d, rate_idx %d\n",
+		   "event mgmt rx freq %d band %d snr %d chains: 0x%x(%d %d %d %d), rate_idx %d\n",
 		   status->freq, status->band, status->signal,
+		   status->chains,
+		   status->chain_signal[0], status->chain_signal[1],
+		   status->chain_signal[2], status->chain_signal[3],
 		   status->rate_idx);
 
 	ieee80211_rx(ar->hw, skb);

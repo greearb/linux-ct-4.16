@@ -6490,6 +6490,7 @@ struct wmi_scan_ev_arg {
 struct wmi_mgmt_rx_ev_arg {
 	__le32 channel;
 	__le32 snr;
+	u8 rssi_ctl[4];
 	__le32 rate;
 	__le32 phy_mode;
 	__le32 buf_len;

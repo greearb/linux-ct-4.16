@@ -6998,6 +6998,7 @@ void ath10k_wmi_10_4_op_fw_stats_fill(struct ath10k *ar,
 int ath10k_wmi_op_get_vdev_subtype(struct ath10k *ar,
 				   enum wmi_vdev_subtype subtype);
 int ath10k_wmi_barrier(struct ath10k *ar);
+void ath10k_wmi_stop_scan_work(struct work_struct *work);
 
 #ifdef CONFIG_ATH10K_DEBUGFS
 /* TODO:  Should really enable this all the time, not just when DEBUGFS is enabled. --Ben */

@@ -571,6 +571,10 @@ struct ath10k_debug {
 
 	/* These counters are kept in software. */
 	u64 rx_bytes; /* counter, total received bytes */
+	u32 rx_drop_unchain_oom; /* AMSDU Dropped due to un-chain OOM case */
+	u32 rx_drop_decap_non_raw_chained;
+	u32 rx_drop_no_freq;
+	u32 rx_drop_cac_running;
 
 	u32 tx_ok; /* counter, OK tx status count. */
 	u32 tx_noack; /* counter, no-ack tx status count. */

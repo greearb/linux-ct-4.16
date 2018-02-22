@@ -6720,6 +6720,7 @@ struct wmi_pdev_set_special_cmd {
 #define SET_SPECIAL_ID_RX_ALL_MGT     0x10 /* Pass all possible mgt frames up to the host
                                             * 0x1 == enable, 0x0 == disable (default)
                                             */
+#define SET_SPECIAL_ID_TX_HANG_COLD_RESET     0x11 /* Allow cold-reset in tx-hang recover code. */
 
 /* Requires specially compiled firmware (-T option) to have any useful effect. */
 #define SET_SPECIAL_ID_TX_DBG         0x99 /* 0x1 == enable, 0x2 == pkt-dbg, 0x0 == disable (default). */

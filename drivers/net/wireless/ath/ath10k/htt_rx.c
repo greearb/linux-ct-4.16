@@ -901,6 +901,7 @@ static void ath10k_htt_rx_h_ppdu(struct ath10k *ar,
 		status->rate_idx = 0;
 		status->nss = 0;
 		status->encoding = RX_ENC_LEGACY;
+		status->enc_flags = 0;
 		status->bw = RATE_INFO_BW_20;
 		status->flag &= ~RX_FLAG_MACTIME_END;
 		status->flag |= RX_FLAG_NO_SIGNAL_VAL;

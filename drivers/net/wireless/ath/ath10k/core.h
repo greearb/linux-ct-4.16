@@ -1186,6 +1186,7 @@ struct ath10k {
 		struct ath10k_spec_scan config;
 	} spectral;
 #endif
+	u32 wmi_get_temp_count;
 
 	struct {
 		/* protected by conf_mutex */

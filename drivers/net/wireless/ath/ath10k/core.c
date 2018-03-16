@@ -35,7 +35,9 @@
 #include "wmi-ops.h"
 #include "coredump.h"
 
-unsigned int ath10k_debug_mask;
+/* Disable ath10k-ct DBGLOG output by default */
+unsigned int ath10k_debug_mask = ATH10K_DBG_NO_DBGLOG;
+
 static unsigned int ath10k_cryptmode_param;
 static bool uart_print;
 static bool skip_otp;

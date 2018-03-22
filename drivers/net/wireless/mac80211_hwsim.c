@@ -1057,7 +1057,7 @@ static void mac80211_hwsim_check_nl_notify(struct mac80211_hwsim_data *data)
 	void *msg_head;
 
 	/* wmediumd mode check */
-	_portid = ACCESS_ONCE(data->wmediumd);
+	_portid = READ_ONCE(data->wmediumd);
 
 	if (!_portid)
 		return;

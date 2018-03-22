@@ -8190,7 +8190,7 @@ ath10k_wmi_10_4_gen_tdls_peer_update(struct ath10k *ar,
 
 	for (i = 0; i < cap->peer_chan_len; i++) {
 		chan = (struct wmi_channel *)&peer_cap->peer_chan_list[i];
-		ath10k_wmi_put_wmi_channel(chan, &chan_arg[i]);
+		ath10k_wmi_put_wmi_channel(ar, chan, &chan_arg[i], arg->vdev_id);
 	}
 
 	ath10k_dbg(ar, ATH10K_DBG_WMI,
@@ -8239,6 +8239,33 @@ ath10k_wmi_barrier(struct ath10k *ar)
 		return -ETIMEDOUT;
 
 	return 0;
+}
+
+int ath10k_wmi_pdev_set_special(struct ath10k *ar, u32 id, u32 val)
+{
+	struct wmi_pdev_set_special_cmd *cmd;
+	struct sk_buff *skb;
+
+	if (!test_bit(ATH10K_FW_FEATURE_WMI_10X_CT,
+		      ar->running_fw->fw_file.fw_features)) {
+		ath10k_warn(ar, "Only CT firmware supports this method of setting thresh62_ext.\n");
+		return -ENOTSUPP;
+	}
+
+	skb = ath10k_wmi_alloc_skb(ar, sizeof(*cmd));
+	if (!skb)
+		return -ENOMEM;
+
+	cmd = (struct wmi_pdev_set_special_cmd *)skb->data;
+	memset(cmd, 0, sizeof(*cmd));
+
+	cmd->id = __cpu_to_le32(id);
+	cmd->val = __cpu_to_le32(val);
+
+	ath10k_dbg(ar, ATH10K_DBG_WMI,
+		   "wmi pdev set special id:%d val: %d\n",
+		   id, val);
+	return ath10k_wmi_cmd_send(ar, skb, WMI_PDEV_SET_SPECIAL_CMDID);
 }
 
 static const struct wmi_ops wmi_ops = {

@@ -1060,7 +1060,7 @@ static u8 ath10k_htt_tx_get_tid(struct sk_buff *skb, bool is_eth)
 	else if (ieee80211_is_nullfunc(hdr->frame_control))
 		return HTT_DATA_TX_EXT_TID_NON_QOS_MCAST_BCAST;
 	else if (cb->flags & ATH10K_SKB_F_QOS)
-		return skb->priority % IEEE80211_QOS_CTL_TID_MASK;
+		return skb->priority & IEEE80211_QOS_CTL_TID_MASK;
 	else
 		return HTT_DATA_TX_EXT_TID_NON_QOS_MCAST_BCAST;
 }

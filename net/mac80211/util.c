@@ -3679,6 +3679,7 @@ int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
 	struct iface_combination_params params = {
 		.radar_detect = radar_detect,
 	};
+	int ret;
 
 	lockdep_assert_held(&local->chanctx_mtx);
 
@@ -3758,7 +3759,10 @@ int ieee80211_check_combinations(struct ieee80211_sub_if_data *sdata,
 	if (total == 1 && !params.radar_detect)
 		return 0;
 
-	return cfg80211_check_combinations(local->hw.wiphy, &params);
+	ret = cfg80211_check_combinations(local->hw.wiphy, &params);
+	if (!ret)
+		sdata_info(sdata, "ieee80211_check_combinations:  cfg80211-check-combinations failed: %d\n", ret);
+	return ret;
 }
 
 static void

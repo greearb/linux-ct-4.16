@@ -1,0 +1,959 @@
+diff --git a/fs/lockd/clntlock.c b/fs/lockd/clntlock.c
+index 60716b9..5f84f1c 100644
+--- a/fs/lockd/clntlock.c
++++ b/fs/lockd/clntlock.c
+@@ -61,7 +61,7 @@ struct nlm_host *nlmclnt_init(const struct nlmclnt_initdata *nlm_init)
+ 		return ERR_PTR(status);
+ 
+ 	host = nlmclnt_lookup_host(nlm_init->address, nlm_init->srcaddr,
+-				   nlm_init->addrlen,
++				   nlm_init->addrlen, nlm_init->dev_name,
+ 				   nlm_init->protocol, nlm_version,
+ 				   nlm_init->hostname, nlm_init->noresvport,
+ 				   nlm_init->net);
+diff --git a/fs/lockd/host.c b/fs/lockd/host.c
+index 7d8f75a..a062b74 100644
+--- a/fs/lockd/host.c
++++ b/fs/lockd/host.c
+@@ -54,6 +54,7 @@ struct nlm_lookup_host_info {
+ 	const int		server;		/* search for server|client */
+ 	const struct sockaddr	*sap;		/* address to search for */
+ 	const struct sockaddr   *src_addr;      /* source address */
++	char                    dev_name[40];   /* Source network dev to bind to */
+ 	const size_t		salen;		/* it's length */
+ 	const unsigned short	protocol;	/* transport to search for*/
+ 	const u32		version;	/* NLM version to search for */
+@@ -144,6 +145,7 @@ static struct nlm_host *nlm_alloc_host(struct nlm_lookup_host_info *ni,
+ 		host->h_srcaddrlen = 0;
+ 	}
+ 
++	strncpy(host->dev_name, ni->dev_name, sizeof(host->dev_name) - 1);
+ 	host->h_rpcclnt    = NULL;
+ 	host->h_name	   = nsm->sm_name;
+ 	host->h_version    = ni->version;
+@@ -216,7 +218,7 @@ static void nlm_destroy_host_locked(struct nlm_host *host)
+  */
+ struct nlm_host *nlmclnt_lookup_host(const struct sockaddr *sap,
+ 				     const struct sockaddr *srcaddr,
+-				     const size_t salen,
++				     const size_t salen, const char* dev_name,
+ 				     const unsigned short protocol,
+ 				     const u32 version,
+ 				     const char *hostname,
+@@ -240,6 +242,8 @@ struct nlm_host *nlmclnt_lookup_host(const struct sockaddr *sap,
+ 	struct nsm_handle *nsm = NULL;
+ 	struct lockd_net *ln = net_generic(net, lockd_net_id);
+ 
++	strncpy(ni.dev_name, dev_name, sizeof(ni.dev_name) - 1);
++
+ 	dprintk("lockd: %s(host='%s', vers=%u, proto=%s)\n", __func__,
+ 			(hostname ? hostname : "<none>"), version,
+ 			(protocol == IPPROTO_UDP ? "udp" : "tcp"));
+@@ -256,6 +260,11 @@ struct nlm_host *nlmclnt_lookup_host(const struct sockaddr *sap,
+ 		/* Check for local binding match only if user
+ 		 * has specified the source-address.
+ 		 */
++		if (dev_name && dev_name[0]) {
++			if (strcmp(dev_name, host->dev_name) != 0)
++				continue;
++		}
++			
+ 		if (srcaddr && srcaddr->sa_family != AF_UNSPEC &&
+ 		    !rpc_cmp_addr(nlm_srcaddr(host), srcaddr))
+ 			continue;
+diff --git a/fs/lockd/svc.c b/fs/lockd/svc.c
+index 9c36d61..d3e649b 100644
+--- a/fs/lockd/svc.c
++++ b/fs/lockd/svc.c
+@@ -192,10 +192,10 @@ static int create_lockd_listener(struct svc_serv *serv, const char *name,
+ {
+ 	struct svc_xprt *xprt;
+ 
+-	xprt = svc_find_xprt(serv, name, net, family, 0);
++	xprt = svc_find_xprt(serv, name, net, family, 0, NULL /* dev_name */);
+ 	if (xprt == NULL)
+ 		return svc_create_xprt(serv, name, net, family, port,
+-						SVC_SOCK_DEFAULTS);
++				       SVC_SOCK_DEFAULTS, NULL /* dev_name */);
+ 	svc_xprt_put(xprt);
+ 	return 0;
+ }
+diff --git a/fs/nfs/callback.c b/fs/nfs/callback.c
+index 0d656dd..9a8fcbe 100644
+--- a/fs/nfs/callback.c
++++ b/fs/nfs/callback.c
+@@ -45,7 +45,7 @@ static int nfs4_callback_up_net(struct svc_serv *serv, struct net *net)
+ 	struct nfs_net *nn = net_generic(net, nfs_net_id);
+ 
+ 	ret = svc_create_xprt(serv, "tcp", net, PF_INET,
+-				nfs_callback_set_tcpport, SVC_SOCK_ANONYMOUS);
++			      nfs_callback_set_tcpport, SVC_SOCK_ANONYMOUS, NULL);
+ 	if (ret <= 0)
+ 		goto out_err;
+ 	nn->nfs_callback_tcpport = ret;
+@@ -53,7 +53,7 @@ static int nfs4_callback_up_net(struct svc_serv *serv, struct net *net)
+ 		nn->nfs_callback_tcpport, PF_INET, net->ns.inum);
+ 
+ 	ret = svc_create_xprt(serv, "tcp", net, PF_INET6,
+-				nfs_callback_set_tcpport, SVC_SOCK_ANONYMOUS);
++			      nfs_callback_set_tcpport, SVC_SOCK_ANONYMOUS, NULL);
+ 	if (ret > 0) {
+ 		nn->nfs_callback_tcpport6 = ret;
+ 		dprintk("NFS: Callback listener port = %u (af %u, net %x\n",
+diff --git a/fs/nfs/callback.h b/fs/nfs/callback.h
+index 24862c5..90dc395d 100644
+--- a/fs/nfs/callback.h
++++ b/fs/nfs/callback.h
+@@ -64,6 +64,7 @@ struct cb_compound_hdr_res {
+ 
+ struct cb_getattrargs {
+ 	struct sockaddr *srcaddr;
++	char dev_name[40];
+ 	struct nfs_fh fh;
+ 	uint32_t bitmap[2];
+ };
+@@ -79,6 +80,7 @@ struct cb_getattrres {
+ 
+ struct cb_recallargs {
+ 	struct sockaddr *srcaddr;
++	char dev_name[40];
+ 	struct nfs_fh fh;
+ 	nfs4_stateid stateid;
+ 	uint32_t truncate;
+@@ -100,6 +102,7 @@ struct referring_call_list {
+ struct cb_sequenceargs {
+ 	struct sockaddr			*csa_addr;
+ 	struct sockaddr                 *csa_daddr;
++	char dev_name[40];
+ 	struct nfs4_sessionid		csa_sessionid;
+ 	uint32_t			csa_sequenceid;
+ 	uint32_t			csa_slotid;
+diff --git a/fs/nfs/callback_proc.c b/fs/nfs/callback_proc.c
+index c64ccf8..9278479 100644
+--- a/fs/nfs/callback_proc.c
++++ b/fs/nfs/callback_proc.c
+@@ -486,6 +486,7 @@ __be32 nfs4_callback_sequence(void *argp, void *resp,
+ 	__be32 status = htonl(NFS4ERR_BADSESSION);
+ 
+ 	clp = nfs4_find_client_sessionid(cps->net, args->csa_daddr, args->csa_addr,
++					 args->dev_name,
+ 					 &args->csa_sessionid, cps->minorversion);
+ 	if (clp == NULL)
+ 		goto out;
+diff --git a/fs/nfs/callback_xdr.c b/fs/nfs/callback_xdr.c
+index 730c986..b84a681 100644
+--- a/fs/nfs/callback_xdr.c
++++ b/fs/nfs/callback_xdr.c
+@@ -190,6 +190,7 @@ static __be32 decode_getattr_args(struct svc_rqst *rqstp,
+ 	if (unlikely(status != 0))
+ 		return status;
+ 	args->srcaddr = svc_daddr(rqstp);
++	strncpy(args->dev_name, rqstp->dev_name, sizeof(args->dev_name));
+ 	return decode_bitmap(xdr, args->bitmap);
+ }
+ 
+@@ -201,6 +202,7 @@ static __be32 decode_recall_args(struct svc_rqst *rqstp,
+ 	__be32 status;
+ 
+ 	args->srcaddr = svc_daddr(rqstp);
++	strncpy(args->dev_name, rqstp->dev_name, sizeof(args->dev_name));
+ 	status = decode_delegation_stateid(xdr, &args->stateid);
+ 	if (unlikely(status != 0))
+ 		return status;
+@@ -423,6 +425,7 @@ static __be32 decode_cb_sequence_args(struct svc_rqst *rqstp,
+ 
+ 	args->csa_addr = svc_addr(rqstp);
+ 	args->csa_daddr = svc_daddr(rqstp);
++	strncpy(args->dev_name, rqstp->dev_name, sizeof(args->dev_name));
+ 	args->csa_sequenceid = ntohl(*p++);
+ 	args->csa_slotid = ntohl(*p++);
+ 	args->csa_highestslotid = ntohl(*p++);
+diff --git a/fs/nfs/client.c b/fs/nfs/client.c
+index b1a4b4b..66dfc49 100644
+--- a/fs/nfs/client.c
++++ b/fs/nfs/client.c
+@@ -170,6 +170,8 @@ struct nfs_client *nfs_alloc_client(const struct nfs_client_initdata *cl_init)
+ 	clp->cl_addrlen = cl_init->addrlen;
+ 	memcpy(&clp->srcaddr, cl_init->srcaddr, cl_init->srcaddrlen);
+ 	clp->srcaddrlen = cl_init->srcaddrlen;
++	strncpy(clp->dev_name, cl_init->dev_name, sizeof(clp->dev_name) - 1);
++	clp->dev_name[sizeof(clp->dev_name) - 1] = 0;
+ 
+ 	if (cl_init->hostname) {
+ 		err = -ENOMEM;
+@@ -303,6 +305,10 @@ static struct nfs_client *nfs_match_client(const struct nfs_client_initdata *dat
+ 		if (clp->cl_cons_state < 0)
+ 			continue;
+ 
++		if (data->dev_name[0] &&
++		    strcmp(clp->dev_name, data->dev_name) != 0)
++			continue;
++		
+ 		/* If a client is still initializing then we need to wait */
+ 		if (clp->cl_cons_state > NFS_CS_READY) {
+ 			refcount_inc(&clp->cl_count);
+@@ -521,6 +527,8 @@ int nfs_create_rpc_client(struct nfs_client *clp,
+ 		.authflavor	= flavor,
+ 	};
+ 
++	strncpy(args.dev_name, clp->dev_name, sizeof(args.dev_name));
++
+ 	if (test_bit(NFS_CS_DISCRTRY, &clp->cl_flags))
+ 		args.flags |= RPC_CLNT_CREATE_DISCRTRY;
+ 	if (test_bit(NFS_CS_NO_RETRANS_TIMEOUT, &clp->cl_flags))
+@@ -573,6 +581,8 @@ static int nfs_start_lockd(struct nfs_server *server)
+ 		.nlmclnt_ops 	= clp->cl_nfs_mod->rpc_ops->nlmclnt_ops,
+ 	};
+ 
++	strncpy(nlm_init.dev_name, clp->dev_name, sizeof(nlm_init.dev_name) - 1);
++
+ 	if (nlm_init.nfs_version > 3)
+ 		return 0;
+ 	if ((server->flags & NFS_MOUNT_LOCAL_FLOCK) &&
+@@ -677,6 +687,8 @@ static int nfs_init_server(struct nfs_server *server,
+ 	struct nfs_client *clp;
+ 	int error;
+ 
++	strncpy(cl_init.dev_name, data->dev_name, sizeof(cl_init.dev_name));
++
+ 	nfs_init_timeout_values(&timeparms, data->nfs_server.protocol,
+ 			data->timeo, data->retrans);
+ 	if (data->flags & NFS_MOUNT_NORESVPORT)
+@@ -1177,7 +1189,7 @@ static int nfs_server_list_show(struct seq_file *m, void *v)
+ 
+ 	/* display header on line 1 */
+ 	if (v == &nn->nfs_client_list) {
+-		seq_puts(m, "NV SERVER   PORT USE HOSTNAME           SRCADDR\n");
++		seq_puts(m, "NV SERVER   PORT USE HOSTNAME           SRCADDR    DEV_NAME\n");
+ 		return 0;
+ 	}
+ 
+@@ -1200,15 +1212,22 @@ static int nfs_server_list_show(struct seq_file *m, void *v)
+ 	if (clp->srcaddr.ss_family == AF_INET) {
+ 		const struct sockaddr_in *sin;
+ 		sin = (const struct sockaddr_in *)&clp->srcaddr;
+-		seq_printf(m, "   %pI4\n", &sin->sin_addr.s_addr);
++		seq_printf(m, "   %pI4", &sin->sin_addr.s_addr);
+ 	} else if (clp->srcaddr.ss_family == AF_INET6) {
+ 		const struct sockaddr_in6 *sin6;
+ 		sin6 = (const struct sockaddr_in6 *)&clp->srcaddr;
+-		seq_printf(m, "   %pI6c\n", &sin6->sin6_addr);
++		seq_printf(m, "   %pI6c", &sin6->sin6_addr);
+ 	} else if (clp->srcaddr.ss_family == AF_UNSPEC)
+-		seq_printf(m, "   ANY\n");
++		seq_printf(m, "   ANY");
+ 	else
+-		seq_printf(m, "   UNKNOWN_%i\n", (int)(clp->srcaddr.ss_family));
++		seq_printf(m, "   UNKNOWN_%i", (int)(clp->srcaddr.ss_family));
++
++	if (clp->dev_name[0]) {
++		seq_printf(m, "    %s\n", clp->dev_name);
++	}
++	else {
++		seq_printf(m, "    ANY\n");
++	}
+ 
+ 	return 0;
+ }
+diff --git a/fs/nfs/internal.h b/fs/nfs/internal.h
+index 88b3e2a..ea84f06 100644
+--- a/fs/nfs/internal.h
++++ b/fs/nfs/internal.h
+@@ -76,6 +76,7 @@ struct nfs_client_initdata {
+ 	const char *hostname;			/* Hostname of the server */
+ 	const struct sockaddr *addr;		/* Address of the server */
+ 	const struct sockaddr *srcaddr;
++	char dev_name[40];
+ 	const char *nodename;			/* Hostname of the client */
+ 	const char *ip_addr;			/* IP address of the client */
+ 	size_t addrlen;
+@@ -111,6 +112,7 @@ struct nfs_parsed_mount_data {
+ 		struct sockaddr_storage	address;
+ 		size_t			addrlen;
+ 	} srcaddr;
++	char                    dev_name[IFNAMSIZ];
+ 
+ 	struct {
+ 		struct sockaddr_storage address;
+@@ -138,6 +140,7 @@ struct nfs_parsed_mount_data {
+ struct nfs_mount_request {
+ 	struct sockaddr		*sap;
+ 	struct sockaddr         *srcaddr;
++	char                    dev_name[40];
+ 	size_t			salen;
+ 	char			*hostname;
+ 	char			*dirpath;
+@@ -184,6 +187,7 @@ extern struct nfs_client *
+ nfs4_find_client_sessionid(struct net *,
+ 			   const struct sockaddr *srcaddr,
+ 			   const struct sockaddr *addr,
++			   const char* dev_name,
+ 			   struct nfs4_sessionid *, u32);
+ extern struct nfs_server *nfs_create_server(struct nfs_mount_info *,
+ 					struct nfs_subversion *);
+diff --git a/fs/nfs/mount_clnt.c b/fs/nfs/mount_clnt.c
+index 56bf31d..32b775d 100644
+--- a/fs/nfs/mount_clnt.c
++++ b/fs/nfs/mount_clnt.c
+@@ -168,6 +168,9 @@ int nfs_mount(struct nfs_mount_request *info)
+ 	struct rpc_clnt		*mnt_clnt;
+ 	int			status;
+ 
++	strncpy(args.dev_name, info->dev_name, sizeof(args.dev_name) - 1);
++	args.dev_name[sizeof(args.dev_name) - 1] = 0;
++
+ 	dprintk("NFS: sending MNT request for %s:%s\n",
+ 		(info->hostname ? info->hostname : "server"),
+ 			info->dirpath);
+diff --git a/fs/nfs/nfs4client.c b/fs/nfs/nfs4client.c
+index c122e5d..bee787e 100644
+--- a/fs/nfs/nfs4client.c
++++ b/fs/nfs/nfs4client.c
+@@ -795,7 +795,7 @@ static bool nfs4_cb_match_client(const struct sockaddr *addr,
+  */
+ struct nfs_client *
+ nfs4_find_client_sessionid(struct net *net, const struct sockaddr *srcaddr,
+-			   const struct sockaddr *addr,
++			   const struct sockaddr *addr, const char* dev_name,
+ 			   struct nfs4_sessionid *sid, u32 minorversion)
+ {
+ 	struct nfs_client *clp;
+@@ -815,6 +815,11 @@ nfs4_find_client_sessionid(struct net *net, const struct sockaddr *srcaddr,
+ 		    sid->data, NFS4_MAX_SESSIONID_LEN) != 0)
+ 			continue;
+ 
++		if (dev_name && dev_name[0]) {
++			if (strcmp(dev_name, clp->dev_name) != 0)
++				continue;
++		}
++
+ 		if (srcaddr) {
+ 			const struct sockaddr *sa;
+ 			sa = (const struct sockaddr *)&clp->cl_addr;
+@@ -864,6 +869,7 @@ static int nfs4_set_client(struct nfs_server *server,
+ 		const char *ip_addr,
+ 		const struct sockaddr *srcaddr,
+ 		const size_t srcaddrlen,
++		const char* dev_name,
+ 		int proto, const struct rpc_timeout *timeparms,
+ 		u32 minorversion, struct net *net)
+ {
+@@ -882,6 +888,9 @@ static int nfs4_set_client(struct nfs_server *server,
+ 	};
+ 	struct nfs_client *clp;
+ 
++	strncpy(cl_init.dev_name, dev_name, sizeof(cl_init.dev_name));
++	cl_init.dev_name[sizeof(cl_init.dev_name) - 1] = 0;
++
+ 	if (server->flags & NFS_MOUNT_NORESVPORT)
+ 		set_bit(NFS_CS_NORESVPORT, &cl_init.init_flags);
+ 	if (server->options & NFS_OPTION_MIGRATION)
+@@ -1077,6 +1086,7 @@ static int nfs4_init_server(struct nfs_server *server,
+ 			data->client_address,
+ 			(const struct sockaddr *)&data->srcaddr.address,
+ 			data->srcaddr.addrlen,
++			data->dev_name,
+ 			data->nfs_server.protocol,
+ 			&timeparms,
+ 			data->minorversion,
+@@ -1164,6 +1174,7 @@ struct nfs_server *nfs4_create_referral_server(struct nfs_clone_mount *data,
+ 				parent_client->cl_ipaddr,
+ 				(const struct sockaddr *)&parent_client->srcaddr,
+ 				parent_client->srcaddrlen,
++				parent_client->dev_name,
+ 				XPRT_TRANSPORT_RDMA,
+ 				parent_server->client->cl_timeout,
+ 				parent_client->cl_mvops->minor_version,
+@@ -1179,6 +1190,7 @@ struct nfs_server *nfs4_create_referral_server(struct nfs_clone_mount *data,
+ 				parent_client->cl_ipaddr,
+ 				(const struct sockaddr *)&parent_client->srcaddr,
+ 				parent_client->srcaddrlen,
++				parent_client->dev_name,
+ 				XPRT_TRANSPORT_TCP,
+ 				parent_server->client->cl_timeout,
+ 				parent_client->cl_mvops->minor_version,
+@@ -1278,7 +1290,7 @@ int nfs4_update_server(struct nfs_server *server, const char *hostname,
+ 	set_bit(NFS_MIG_TSM_POSSIBLE, &server->mig_status);
+ 	error = nfs4_set_client(server, hostname, sap, salen, buf,
+ 				(struct sockaddr *)(&clp->srcaddr),
+-				clp->srcaddrlen,
++				clp->srcaddrlen, clp->dev_name,
+ 				clp->cl_proto, clnt->cl_timeout,
+ 				clp->cl_minorversion, net);
+ 	clear_bit(NFS_MIG_TSM_POSSIBLE, &server->mig_status);
+diff --git a/fs/nfs/super.c b/fs/nfs/super.c
+index 75708b3..2a76f68 100644
+--- a/fs/nfs/super.c
++++ b/fs/nfs/super.c
+@@ -106,7 +106,7 @@ enum {
+ 	/* Mount options that take string arguments */
+ 	Opt_nfsvers,
+ 	Opt_sec, Opt_proto, Opt_mountproto, Opt_mounthost,
+-	Opt_addr, Opt_mountaddr, Opt_clientaddr, Opt_srcaddr,
++	Opt_addr, Opt_mountaddr, Opt_clientaddr, Opt_srcaddr, Opt_dev_name,
+ 	Opt_lookupcache,
+ 	Opt_fscache_uniq,
+ 	Opt_local_lock,
+@@ -177,6 +177,7 @@ static const match_table_t nfs_mount_option_tokens = {
+ 	{ Opt_addr, "addr=%s" },
+ 	{ Opt_clientaddr, "clientaddr=%s" },
+ 	{ Opt_srcaddr, "srcaddr=%s" },
++	{ Opt_dev_name, "dev_name=%s" },
+ 	{ Opt_mounthost, "mounthost=%s" },
+ 	{ Opt_mountaddr, "mountaddr=%s" },
+ 
+@@ -694,6 +695,10 @@ static void nfs_show_mount_options(struct seq_file *m, struct nfs_server *nfss,
+ 		seq_printf(m, ",srcaddr=%pI4", &sin->sin_addr.s_addr);
+ 	}
+ 
++	if (clp->dev_name[0]) {
++		seq_printf(m, ",dev_name=%s", clp->dev_name);
++	}
++
+ 	if (nfss->options & NFS_OPTION_FSCACHE)
+ 		seq_printf(m, ",fsc");
+ 
+@@ -1607,6 +1612,13 @@ static int nfs_parse_mount_options(char *raw,
+ 				goto out_invalid_address;
+ 			}
+ 			break;
++		case Opt_dev_name:
++			string = match_strdup(args);
++			if (string == NULL)
++				goto out_nomem;
++			strncpy(mnt->dev_name, string, sizeof(mnt->dev_name) - 1);
++			kfree(string);
++			break;
+ 		case Opt_local_lock:
+ 			string = match_strdup(args);
+ 			if (string == NULL)
+@@ -1789,6 +1801,9 @@ static int nfs_request_mount(struct nfs_parsed_mount_data *args,
+ 	};
+ 	int status;
+ 
++	strncpy(request.dev_name, args->dev_name, sizeof(request.dev_name) - 1);
++	request.dev_name[sizeof(request.dev_name) - 1] = 0;
++
+ 	if (args->mount_server.version == 0) {
+ 		switch (args->version) {
+ 			default:
+diff --git a/fs/nfsd/nfsctl.c b/fs/nfsd/nfsctl.c
+index d107b44..d97b5d3 100644
+--- a/fs/nfsd/nfsctl.c
++++ b/fs/nfsd/nfsctl.c
+@@ -769,12 +769,12 @@ static ssize_t __write_ports_addxprt(char *buf, struct net *net)
+ 		return err;
+ 
+ 	err = svc_create_xprt(nn->nfsd_serv, transport, net,
+-				PF_INET, port, SVC_SOCK_ANONYMOUS);
++			      PF_INET, port, SVC_SOCK_ANONYMOUS, NULL);
+ 	if (err < 0)
+ 		goto out_err;
+ 
+ 	err = svc_create_xprt(nn->nfsd_serv, transport, net,
+-				PF_INET6, port, SVC_SOCK_ANONYMOUS);
++			      PF_INET6, port, SVC_SOCK_ANONYMOUS, NULL);
+ 	if (err < 0 && err != -EAFNOSUPPORT)
+ 		goto out_close;
+ 
+diff --git a/fs/nfsd/nfssvc.c b/fs/nfsd/nfssvc.c
+index 89cb484..4576ed5 100644
+--- a/fs/nfsd/nfssvc.c
++++ b/fs/nfsd/nfssvc.c
+@@ -214,12 +214,12 @@ static int nfsd_init_socks(struct net *net)
+ 		return 0;
+ 
+ 	error = svc_create_xprt(nn->nfsd_serv, "udp", net, PF_INET, NFS_PORT,
+-					SVC_SOCK_DEFAULTS);
++				SVC_SOCK_DEFAULTS, NULL);
+ 	if (error < 0)
+ 		return error;
+ 
+ 	error = svc_create_xprt(nn->nfsd_serv, "tcp", net, PF_INET, NFS_PORT,
+-					SVC_SOCK_DEFAULTS);
++				SVC_SOCK_DEFAULTS, NULL);
+ 	if (error < 0)
+ 		return error;
+ 
+diff --git a/include/linux/lockd/bind.h b/include/linux/lockd/bind.h
+index d0a34ad..248b436 100644
+--- a/include/linux/lockd/bind.h
++++ b/include/linux/lockd/bind.h
+@@ -42,6 +42,7 @@ struct nlmclnt_initdata {
+ 	const struct sockaddr	*address;
+ 	const struct sockaddr   *srcaddr;
+ 	size_t			addrlen;
++	char dev_name[40];
+ 	unsigned short		protocol;
+ 	u32			nfs_version;
+ 	int			noresvport;
+diff --git a/include/linux/lockd/lockd.h b/include/linux/lockd/lockd.h
+index b7d8bc5..a3622c6 100644
+--- a/include/linux/lockd/lockd.h
++++ b/include/linux/lockd/lockd.h
+@@ -46,6 +46,7 @@ struct nlm_host {
+ 	size_t			h_addrlen;
+ 	struct sockaddr_storage	h_srcaddr;	/* our address (optional) */
+ 	size_t			h_srcaddrlen;
++	char                    dev_name[IFNAMSIZ];
+ 	struct rpc_clnt		*h_rpcclnt;	/* RPC client to talk to peer */
+ 	char			*h_name;		/* remote hostname */
+ 	u32			h_version;	/* interface version */
+@@ -226,6 +227,7 @@ void		  nlmclnt_next_cookie(struct nlm_cookie *);
+ struct nlm_host  *nlmclnt_lookup_host(const struct sockaddr *sap,
+ 					const struct sockaddr *bindaddr,
+ 					const size_t salen,
++ 				        const char* dev_name,
+ 					const unsigned short protocol,
+ 					const u32 version,
+ 					const char *hostname,
+diff --git a/include/linux/nfs_fs_sb.h b/include/linux/nfs_fs_sb.h
+index 43c4479..18a2698 100644
+--- a/include/linux/nfs_fs_sb.h
++++ b/include/linux/nfs_fs_sb.h
+@@ -116,6 +116,8 @@ struct nfs_client {
+ 	 */
+ 	char			cl_ipaddr[48];
+ 
++	char                    dev_name[IFNAMSIZ];
++
+ 	/* If we should bind to a local IP, it should be specified below. */
+ 	struct sockaddr_storage	srcaddr;
+ 	size_t			srcaddrlen;
+diff --git a/include/linux/sunrpc/clnt.h b/include/linux/sunrpc/clnt.h
+index ed761f7..eed561d 100644
+--- a/include/linux/sunrpc/clnt.h
++++ b/include/linux/sunrpc/clnt.h
+@@ -113,6 +113,7 @@ struct rpc_create_args {
+ 	int			protocol;
+ 	struct sockaddr		*address;
+ 	size_t			addrsize;
++	char                    dev_name[IFNAMSIZ];
+ 	struct sockaddr		*saddress;
+ 	const struct rpc_timeout *timeout;
+ 	const char		*servername;
+diff --git a/include/linux/sunrpc/svc.h b/include/linux/sunrpc/svc.h
+index 786ae22..86affa7 100644
+--- a/include/linux/sunrpc/svc.h
++++ b/include/linux/sunrpc/svc.h
+@@ -19,6 +19,7 @@
+ #include <linux/sunrpc/svcauth.h>
+ #include <linux/wait.h>
+ #include <linux/mm.h>
++#include <linux/if.h>
+ 
+ /* statistics for svc_pool structures */
+ struct svc_pool_stats {
+@@ -236,6 +237,7 @@ struct svc_rqst {
+ 	struct sockaddr_storage	rq_daddr;	/* dest addr of request
+ 						 *  - reply from here */
+ 	size_t			rq_daddrlen;
++	char                    dev_name[IFNAMSIZ];
+ 
+ 	struct svc_serv *	rq_server;	/* RPC service definition */
+ 	struct svc_pool *	rq_pool;	/* thread pool */
+diff --git a/include/linux/sunrpc/svc_xprt.h b/include/linux/sunrpc/svc_xprt.h
+index 1caf7bc..3dd227b 100644
+--- a/include/linux/sunrpc/svc_xprt.h
++++ b/include/linux/sunrpc/svc_xprt.h
+@@ -16,7 +16,7 @@ struct svc_xprt_ops {
+ 	struct svc_xprt	*(*xpo_create)(struct svc_serv *,
+ 				       struct net *net,
+ 				       struct sockaddr *, int,
+-				       int);
++				       int, const char* dev_name);
+ 	struct svc_xprt	*(*xpo_accept)(struct svc_xprt *);
+ 	int		(*xpo_has_wspace)(struct svc_xprt *);
+ 	int		(*xpo_recvfrom)(struct svc_rqst *);
+@@ -79,7 +79,8 @@ struct svc_xprt {
+ 	void			*xpt_auth_cache;/* auth cache */
+ 	struct list_head	xpt_deferred;	/* deferred requests that need
+ 						 * to be revisted */
+-	struct sockaddr_storage	xpt_local;	/* local address */
++	char                    dev_name[IFNAMSIZ]; /* local dev we are bound to */
++	struct sockaddr_storage	xpt_local_;	/* local address */
+ 	size_t			xpt_locallen;	/* length of address */
+ 	struct sockaddr_storage	xpt_remote;	/* remote peer's address */
+ 	size_t			xpt_remotelen;	/* length of address */
+@@ -120,7 +121,7 @@ void	svc_unreg_xprt_class(struct svc_xprt_class *);
+ void	svc_xprt_init(struct net *, struct svc_xprt_class *, struct svc_xprt *,
+ 		      struct svc_serv *);
+ int	svc_create_xprt(struct svc_serv *, const char *, struct net *,
+-			const int, const unsigned short, int);
++			const int, const unsigned short, int, const char* dev_name);
+ void	svc_xprt_do_enqueue(struct svc_xprt *xprt);
+ void	svc_xprt_enqueue(struct svc_xprt *xprt);
+ void	svc_xprt_put(struct svc_xprt *xprt);
+@@ -129,8 +130,8 @@ void	svc_close_xprt(struct svc_xprt *xprt);
+ int	svc_port_is_privileged(struct sockaddr *sin);
+ int	svc_print_xprts(char *buf, int maxlen);
+ struct	svc_xprt *svc_find_xprt(struct svc_serv *serv, const char *xcl_name,
+-			struct net *net, const sa_family_t af,
+-			const unsigned short port);
++				struct net *net, const sa_family_t af,
++				const unsigned short port, const char* dev_name);
+ int	svc_xprt_names(struct svc_serv *serv, char *buf, const int buflen);
+ void	svc_add_new_perm_xprt(struct svc_serv *serv, struct svc_xprt *xprt);
+ void	svc_age_temp_xprts_now(struct svc_serv *, struct sockaddr *);
+@@ -143,7 +144,7 @@ static inline void svc_xprt_set_local(struct svc_xprt *xprt,
+ 				      const struct sockaddr *sa,
+ 				      const size_t salen)
+ {
+-	memcpy(&xprt->xpt_local, sa, salen);
++	memcpy(&xprt->xpt_local_, sa, salen);
+ 	xprt->xpt_locallen = salen;
+ }
+ static inline void svc_xprt_set_remote(struct svc_xprt *xprt,
+@@ -181,7 +182,7 @@ static inline size_t svc_addr_len(const struct sockaddr *sa)
+ 
+ static inline unsigned short svc_xprt_local_port(const struct svc_xprt *xprt)
+ {
+-	return svc_addr_port((const struct sockaddr *)&xprt->xpt_local);
++	return svc_addr_port((const struct sockaddr *)&xprt->xpt_local_);
+ }
+ 
+ static inline unsigned short svc_xprt_remote_port(const struct svc_xprt *xprt)
+diff --git a/include/linux/sunrpc/xprtsock.h b/include/linux/sunrpc/xprtsock.h
+index ae0f99b..489e9e7 100644
+--- a/include/linux/sunrpc/xprtsock.h
++++ b/include/linux/sunrpc/xprtsock.h
+@@ -49,6 +49,7 @@ struct sock_xprt {
+ 	struct mutex		recv_mutex;
+ 	struct sockaddr_storage	srcaddr;
+ 	unsigned short		srcport;
++	char                    dev_name[IFNAMSIZ];
+ 
+ 	/*
+ 	 * UDP socket buffer size parameters
+diff --git a/net/sunrpc/rpcb_clnt.c b/net/sunrpc/rpcb_clnt.c
+index 68a5a59..8a78366 100644
+--- a/net/sunrpc/rpcb_clnt.c
++++ b/net/sunrpc/rpcb_clnt.c
+@@ -359,7 +359,7 @@ static struct rpc_clnt *rpcb_create(struct net *net, const char* nodename,
+ 				    const char *hostname,
+ 				    struct sockaddr *srvaddr,
+ 				    size_t salen, int proto, u32 version,
+-				    struct sockaddr *srcaddr)
++				    struct sockaddr *srcaddr, const char* dev_name)
+ {
+ 	struct rpc_create_args args = {
+ 		.net		= net,
+@@ -376,6 +376,9 @@ static struct rpc_clnt *rpcb_create(struct net *net, const char* nodename,
+ 					RPC_CLNT_CREATE_NONPRIVPORT),
+ 	};
+ 
++	strncpy(args.dev_name, dev_name, sizeof(args.dev_name));
++	args.dev_name[sizeof(args.dev_name) - 1] = 0;
++
+ 	switch (srvaddr->sa_family) {
+ 	case AF_INET:
+ 		((struct sockaddr_in *)srvaddr)->sin_port = htons(RPCBIND_PORT);
+@@ -684,6 +687,7 @@ void rpcb_getport_async(struct rpc_task *task)
+ 	struct sockaddr *sap = (struct sockaddr *)&addr;
+ 	struct sockaddr_storage srcaddr;
+ 	struct sockaddr *srcaddra = NULL;
++	char dev_name[40];
+ 	size_t salen;
+ 	int status;
+ 	struct sock_xprt *sxprt;
+@@ -710,6 +714,8 @@ void rpcb_getport_async(struct rpc_task *task)
+ 		memcpy(&si->sin6_addr, &si2->sin6_addr, sizeof(si2->sin6_addr));
+ 		srcaddra = (struct sockaddr *)(&srcaddr);
+ 	}
++	strncpy(dev_name, sxprt->dev_name, sizeof(dev_name));
++	dev_name[sizeof(dev_name) - 1] = 0;
+ 
+ 	dprintk("RPC: %5u %s(%s, %u, %u, %d)\n",
+ 		task->tk_pid, __func__,
+@@ -767,7 +773,7 @@ void rpcb_getport_async(struct rpc_task *task)
+ 	rpcb_clnt = rpcb_create(xprt->xprt_net,
+ 				clnt->cl_nodename,
+ 				xprt->servername, sap, salen,
+-				xprt->prot, bind_version, srcaddra);
++				xprt->prot, bind_version, srcaddra, dev_name);
+ 
+ 	if (IS_ERR(rpcb_clnt)) {
+ 		status = PTR_ERR(rpcb_clnt);
+diff --git a/net/sunrpc/svc_xprt.c b/net/sunrpc/svc_xprt.c
+index f9307bd..1e48d99 100644
+--- a/net/sunrpc/svc_xprt.c
++++ b/net/sunrpc/svc_xprt.c
+@@ -181,7 +181,7 @@ static struct svc_xprt *__svc_xpo_create(struct svc_xprt_class *xcl,
+ 					 struct net *net,
+ 					 const int family,
+ 					 const unsigned short port,
+-					 int flags)
++					 int flags, const char* dev_name)
+ {
+ 	struct sockaddr_in sin = {
+ 		.sin_family		= AF_INET,
+@@ -213,7 +213,7 @@ static struct svc_xprt *__svc_xpo_create(struct svc_xprt_class *xcl,
+ 		return ERR_PTR(-EAFNOSUPPORT);
+ 	}
+ 
+-	return xcl->xcl_ops->xpo_create(serv, net, sap, len, flags);
++	return xcl->xcl_ops->xpo_create(serv, net, sap, len, flags, dev_name);
+ }
+ 
+ /*
+@@ -252,7 +252,7 @@ void svc_add_new_perm_xprt(struct svc_serv *serv, struct svc_xprt *new)
+ 
+ static int _svc_create_xprt(struct svc_serv *serv, const char *xprt_name,
+ 			    struct net *net, const int family,
+-			    const unsigned short port, int flags)
++			    const unsigned short port, int flags, const char* dev_name)
+ {
+ 	struct svc_xprt_class *xcl;
+ 
+@@ -268,7 +268,7 @@ static int _svc_create_xprt(struct svc_serv *serv, const char *xprt_name,
+ 			goto err;
+ 
+ 		spin_unlock(&svc_xprt_class_lock);
+-		newxprt = __svc_xpo_create(xcl, serv, net, family, port, flags);
++		newxprt = __svc_xpo_create(xcl, serv, net, family, port, flags, dev_name);
+ 		if (IS_ERR(newxprt)) {
+ 			module_put(xcl->xcl_owner);
+ 			return PTR_ERR(newxprt);
+@@ -286,15 +286,16 @@ static int _svc_create_xprt(struct svc_serv *serv, const char *xprt_name,
+ 
+ int svc_create_xprt(struct svc_serv *serv, const char *xprt_name,
+ 		    struct net *net, const int family,
+-		    const unsigned short port, int flags)
++		    const unsigned short port, int flags,
++		    const char* dev_name)
+ {
+ 	int err;
+ 
+ 	dprintk("svc: creating transport %s[%d]\n", xprt_name, port);
+-	err = _svc_create_xprt(serv, xprt_name, net, family, port, flags);
++	err = _svc_create_xprt(serv, xprt_name, net, family, port, flags, dev_name);
+ 	if (err == -EPROTONOSUPPORT) {
+ 		request_module("svc%s", xprt_name);
+-		err = _svc_create_xprt(serv, xprt_name, net, family, port, flags);
++		err = _svc_create_xprt(serv, xprt_name, net, family, port, flags, dev_name);
+ 	}
+ 	if (err)
+ 		dprintk("svc: transport %s not found, err %d\n",
+@@ -315,8 +316,9 @@ void svc_xprt_copy_addrs(struct svc_rqst *rqstp, struct svc_xprt *xprt)
+ 	 * Destination address in request is needed for binding the
+ 	 * source address in RPC replies/callbacks later.
+ 	 */
+-	memcpy(&rqstp->rq_daddr, &xprt->xpt_local, xprt->xpt_locallen);
++	memcpy(&rqstp->rq_daddr, &xprt->xpt_local_, xprt->xpt_locallen);
+ 	rqstp->rq_daddrlen = xprt->xpt_locallen;
++	strncpy(rqstp->dev_name, xprt->dev_name, sizeof(rqstp->dev_name));
+ }
+ EXPORT_SYMBOL_GPL(svc_xprt_copy_addrs);
+ 
+@@ -962,7 +964,7 @@ static void svc_age_temp_xprts(struct timer_list *t)
+  * This is meant to be called from a notifier_block that runs when an ip
+  * address is deleted.
+  */
+-void svc_age_temp_xprts_now(struct svc_serv *serv, struct sockaddr *server_addr)
++void svc_age_temp_xprts_now(struct svc_serv *serv, struct sockaddr *server_addr, const char* dev_name)
+ {
+ 	struct svc_xprt *xprt;
+ 	struct list_head *le, *next;
+@@ -972,7 +974,10 @@ void svc_age_temp_xprts_now(struct svc_serv *serv, struct sockaddr *server_addr)
+ 	list_for_each_safe(le, next, &serv->sv_tempsocks) {
+ 		xprt = list_entry(le, struct svc_xprt, xpt_list);
+ 		if (rpc_cmp_addr(server_addr, (struct sockaddr *)
+-				&xprt->xpt_local)) {
++				&xprt->xpt_local_)) {
++			if ((dev_name && strcmp(dev_name, xprt->dev_name) != 0) ||
++			    ((!dev_name) && xprt->dev_name[0]))
++				continue;
+ 			dprintk("svc_age_temp_xprts_now: found %p\n", xprt);
+ 			list_move(le, &to_be_closed);
+ 		}
+@@ -1264,7 +1269,7 @@ static struct svc_deferred_req *svc_deferred_dequeue(struct svc_xprt *xprt)
+  */
+ struct svc_xprt *svc_find_xprt(struct svc_serv *serv, const char *xcl_name,
+ 			       struct net *net, const sa_family_t af,
+-			       const unsigned short port)
++			       const unsigned short port, const char* dev_name)
+ {
+ 	struct svc_xprt *xprt;
+ 	struct svc_xprt *found = NULL;
+@@ -1279,7 +1284,10 @@ struct svc_xprt *svc_find_xprt(struct svc_serv *serv, const char *xcl_name,
+ 			continue;
+ 		if (strcmp(xprt->xpt_class->xcl_name, xcl_name))
+ 			continue;
+-		if (af != AF_UNSPEC && af != xprt->xpt_local.ss_family)
++		if (af != AF_UNSPEC && af != xprt->xpt_local_.ss_family)
++			continue;
++		if ((dev_name && strcmp(dev_name, xprt->dev_name) != 0) ||
++		    (!dev_name && xprt->dev_name[0]))
+ 			continue;
+ 		if (port != 0 && port != svc_xprt_local_port(xprt))
+ 			continue;
+diff --git a/net/sunrpc/svcsock.c b/net/sunrpc/svcsock.c
+index 943f2a7..b686a6d 100644
+--- a/net/sunrpc/svcsock.c
++++ b/net/sunrpc/svcsock.c
+@@ -69,11 +69,11 @@ static void		svc_sock_free(struct svc_xprt *);
+ 
+ static struct svc_xprt *svc_create_socket(struct svc_serv *, int,
+ 					  struct net *, struct sockaddr *,
+-					  int, int);
++					  int, int, const char* dev_name);
+ #if defined(CONFIG_SUNRPC_BACKCHANNEL)
+ static struct svc_xprt *svc_bc_create_socket(struct svc_serv *, int,
+ 					     struct net *, struct sockaddr *,
+-					     int, int);
++					     int, int, const char* dev_name);
+ static void svc_bc_sock_free(struct svc_xprt *xprt);
+ #endif /* CONFIG_SUNRPC_BACKCHANNEL */
+ 
+@@ -674,9 +674,9 @@ static void svc_udp_kill_temp_xprt(struct svc_xprt *xprt)
+ static struct svc_xprt *svc_udp_create(struct svc_serv *serv,
+ 				       struct net *net,
+ 				       struct sockaddr *sa, int salen,
+-				       int flags)
++				       int flags, const char* dev_name)
+ {
+-	return svc_create_socket(serv, IPPROTO_UDP, net, sa, salen, flags);
++	return svc_create_socket(serv, IPPROTO_UDP, net, sa, salen, flags, dev_name);
+ }
+ 
+ static const struct svc_xprt_ops svc_udp_ops = {
+@@ -866,6 +866,21 @@ static struct svc_xprt *svc_tcp_accept(struct svc_xprt *xprt)
+ 	if (IS_ERR(newsvsk))
+ 		goto failed;
+ 	svc_xprt_set_remote(&newsvsk->sk_xprt, sin, slen);
++
++	if (xprt->dev_name[0]) {
++		struct net_device *dev;
++		int index = 0;
++
++		rcu_read_lock();
++                dev = dev_get_by_name_rcu(sock_net(sock->sk), xprt->dev_name);
++                if (dev) {
++                        index = dev->ifindex;
++			dev_put(dev);
++		}
++		strncpy(newsvsk->sk_xprt.dev_name, xprt->dev_name, sizeof(newsvsk->sk_xprt.dev_name));
++		newsock->sk->sk_bound_dev_if = index;
++	}
++
+ 	err = kernel_getsockname(newsock, sin, &slen);
+ 	if (unlikely(err < 0)) {
+ 		dprintk("svc_tcp_accept: kernel_getsockname error %d\n", -err);
+@@ -1204,23 +1219,23 @@ static void svc_tcp_prep_reply_hdr(struct svc_rqst *rqstp)
+ static struct svc_xprt *svc_tcp_create(struct svc_serv *serv,
+ 				       struct net *net,
+ 				       struct sockaddr *sa, int salen,
+-				       int flags)
++				       int flags, const char* dev_name)
+ {
+-	return svc_create_socket(serv, IPPROTO_TCP, net, sa, salen, flags);
++	return svc_create_socket(serv, IPPROTO_TCP, net, sa, salen, flags, dev_name);
+ }
+ 
+ #if defined(CONFIG_SUNRPC_BACKCHANNEL)
+ static struct svc_xprt *svc_bc_create_socket(struct svc_serv *, int,
+ 					     struct net *, struct sockaddr *,
+-					     int, int);
++					     int, int, const char* dev_name);
+ static void svc_bc_sock_free(struct svc_xprt *xprt);
+ 
+ static struct svc_xprt *svc_bc_tcp_create(struct svc_serv *serv,
+ 				       struct net *net,
+ 				       struct sockaddr *sa, int salen,
+-				       int flags)
++					  int flags, const char* dev_name)
+ {
+-	return svc_bc_create_socket(serv, IPPROTO_TCP, net, sa, salen, flags);
++	return svc_bc_create_socket(serv, IPPROTO_TCP, net, sa, salen, flags, dev_name);
+ }
+ 
+ static void svc_bc_tcp_sock_detach(struct svc_xprt *xprt)
+@@ -1465,6 +1480,16 @@ int svc_addsock(struct svc_serv *serv, const int fd, char *name_return,
+ 		err = PTR_ERR(svsk);
+ 		goto out;
+ 	}
++
++	if (so->sk->sk_bound_dev_if) {
++		struct net_device *dev;
++                dev = dev_get_by_index_rcu(sock_net(so->sk), so->sk->sk_bound_dev_if);
++                if (dev) {
++			strncpy(svsk->sk_xprt.dev_name, dev->name, sizeof(svsk->sk_xprt.dev_name));
++			dev_put(dev);
++		}
++	}
++
+ 	if (kernel_getsockname(svsk->sk_sock, sin, &salen) == 0)
+ 		svc_xprt_set_local(&svsk->sk_xprt, sin, salen);
+ 	svc_add_new_perm_xprt(serv, &svsk->sk_xprt);
+@@ -1482,7 +1507,7 @@ static struct svc_xprt *svc_create_socket(struct svc_serv *serv,
+ 					  int protocol,
+ 					  struct net *net,
+ 					  struct sockaddr *sin, int len,
+-					  int flags)
++					  int flags, const char* dev_name)
+ {
+ 	struct svc_sock	*svsk;
+ 	struct socket	*sock;
+@@ -1493,6 +1518,7 @@ static struct svc_xprt *svc_create_socket(struct svc_serv *serv,
+ 	int		newlen;
+ 	int		family;
+ 	int		val;
++	int             index = 0;
+ 	RPC_IFDEBUG(char buf[RPC_MAX_ADDRBUFLEN]);
+ 
+ 	dprintk("svc: svc_create_socket(%s, %d, %s)\n",
+@@ -1533,6 +1559,16 @@ static struct svc_xprt *svc_create_socket(struct svc_serv *serv,
+ 		kernel_setsockopt(sock, SOL_IPV6, IPV6_V6ONLY,
+ 					(char *)&val, sizeof(val));
+ 
++	if (dev_name[0]) {
++		struct net_device *dev;
++		rcu_read_lock();
++                dev = dev_get_by_name_rcu(net, dev_name);
++                if (dev)
++                        index = dev->ifindex;
++                rcu_read_unlock();
++		sock->sk->sk_bound_dev_if = index;
++	}
++
+ 	if (type == SOCK_STREAM)
+ 		sock->sk->sk_reuse = SK_CAN_REUSE; /* allow address reuse */
+ 	error = kernel_bind(sock, sin, len);
+@@ -1554,6 +1590,7 @@ static struct svc_xprt *svc_create_socket(struct svc_serv *serv,
+ 		error = PTR_ERR(svsk);
+ 		goto bummer;
+ 	}
++	strncpy(svsk->sk_xprt.dev_name, dev_name, sizeof(svsk->sk_xprt.dev_name));
+ 	svc_xprt_set_local(&svsk->sk_xprt, newsin, newlen);
+ 	return (struct svc_xprt *)svsk;
+ bummer:
+@@ -1622,7 +1659,7 @@ static struct svc_xprt *svc_bc_create_socket(struct svc_serv *serv,
+ 					     int protocol,
+ 					     struct net *net,
+ 					     struct sockaddr *sin, int len,
+-					     int flags)
++					     int flags, const char* dev_name)
+ {
+ 	struct svc_sock *svsk;
+ 	struct svc_xprt *xprt;
+@@ -1638,6 +1675,7 @@ static struct svc_xprt *svc_bc_create_socket(struct svc_serv *serv,
+ 		return ERR_PTR(-ENOMEM);
+ 
+ 	xprt = &svsk->sk_xprt;
++	strncpy(xprt->dev_name, dev_name, sizeof(xprt->dev_name));
+ 	svc_xprt_init(net, &svc_tcp_bc_class, xprt, serv);
+ 	set_bit(XPT_CONG_CTRL, &svsk->sk_xprt.xpt_flags);
+ 
+diff --git a/net/sunrpc/xprtsock.c b/net/sunrpc/xprtsock.c
+index 57bed90..8451c65 100644
+--- a/net/sunrpc/xprtsock.c
++++ b/net/sunrpc/xprtsock.c
+@@ -1421,7 +1421,7 @@ static int xs_tcp_bc_up(struct svc_serv *serv, struct net *net)
+ 	int ret;
+ 
+ 	ret = svc_create_xprt(serv, "tcp-bc", net, PF_INET, 0,
+-			      SVC_SOCK_ANONYMOUS);
++			      SVC_SOCK_ANONYMOUS, NULL);
+ 	if (ret < 0)
+ 		return ret;
+ 	return 0;

@@ -3998,6 +3998,8 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
 	u64 tsf64;
 	u8 rssi, width;
 
+	pe.msg[0] = 0;
+
 	reg0 = __le32_to_cpu(rr->reg0);
 	reg1 = __le32_to_cpu(rr->reg1);
 
@@ -4068,8 +4070,17 @@ static void ath10k_dfs_radar_report(struct ath10k *ar,
 	}
 
 radar_detected:
-	ath10k_dbg(ar, ATH10K_DBG_REGULATORY, "dfs radar detected\n");
+	ath10k_dbg(ar, ATH10K_DBG_REGULATORY, "dfs radar detected: %s\n", pe.msg);
 	ATH10K_DFS_STAT_INC(ar, radar_detected);
+
+#ifdef ATH_HAVE_PULSE_EVENT_MSG /* so we can compile out-of-tree easier */
+	if (pe.msg[0]) {
+		strncpy(ar->debug.dfs_last_msg, pe.msg,
+			sizeof(ar->debug.dfs_last_msg));
+		/* ensure null term */
+		ar->debug.dfs_last_msg[sizeof(ar->debug.dfs_last_msg) - 1] = 0;
+	}
+#endif
 
 	/* Control radar events reporting in debugfs file
 	 * dfs_block_radar_events

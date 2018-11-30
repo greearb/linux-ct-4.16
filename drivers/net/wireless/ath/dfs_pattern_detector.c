@@ -294,11 +294,13 @@ dpd_add_pulse(struct dfs_pattern_detector *dpd, struct pulse_event *event)
 		struct pri_detector *pd = cd->detectors[i];
 		struct pri_sequence *ps = pd->add_pulse(pd, event);
 		if (ps != NULL) {
-			ath_dbg(dpd->common, DFS,
-				"DFS: radar found on freq=%d: id=%d, pri=%d, "
-				"count=%d, count_false=%d\n",
-				event->freq, pd->rs->type_id,
-				ps->pri, ps->count, ps->count_falses);
+			snprintf(event->msg, sizeof(event->msg),
+				 "DFS: radar found on freq=%d: id=%d, pri=%d, "
+				 "count=%d, count_false=%d\n",
+				 event->freq, pd->rs->type_id,
+				 ps->pri, ps->count, ps->count_falses);
+			event->msg[sizeof(event->msg) - 1] = 0; /* ensure null term */
+			ath_dbg(dpd->common, DFS, "%s", event->msg);
 			pd->reset(pd, dpd->last_pulse_ts);
 			return true;
 		}

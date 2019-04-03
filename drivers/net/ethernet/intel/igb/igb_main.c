@@ -8311,8 +8311,7 @@ int igb_set_spd_dplx(struct igb_adapter *adapter, u32 spd, u8 dplx)
 		adapter->hw.phy.autoneg_advertised = ADVERTISE_1000_FULL;
 		break;
 	case SPEED_1000 + DUPLEX_HALF: /* not supported */
-		dev_err(&pdev->dev, "Unsupported Speed/Duplex configuration:  1Gbps HD not supported\n",
-			spd, dplx);
+		dev_err(&pdev->dev, "Unsupported Speed/Duplex configuration:  1Gbps HD not supported\n");
 		goto err_inval;
 	default:
 		dev_err(&pdev->dev, "Unsupported Speed/Duplex configuration, case not handled, spd: 0x%x  dplx: 0x%x\n",

@@ -4486,6 +4486,7 @@ static int nl80211_send_station(struct sk_buff *msg, u32 cmd, u32 portid,
 
 	PUT_SINFO(CONNECTED_TIME, connected_time, u32);
 	PUT_SINFO(INACTIVE_TIME, inactive_time, u32);
+	PUT_SINFO_U64(ASSOC_AT_MS, assoc_at_ms);
 
 	if (sinfo->filled & (BIT(NL80211_STA_INFO_RX_BYTES) |
 			     BIT(NL80211_STA_INFO_RX_BYTES64)) &&
